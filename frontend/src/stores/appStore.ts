@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import { api } from '../services/api'
 
 export type TabType = 'home' | 'timer' | 'tracking' | 'analytics' | 'social' | 'recipes' | 'settings'
@@ -127,3 +128,42 @@ export const useAppStore = create<AppState>()((set) => ({
   },
   hideToast: () => set({ toast: null }),
 }))
+
+// Optimized selectors to prevent unnecessary re-renders
+// Use these when you only need specific values from the store
+
+// Navigation selector
+export const useCurrentTab = () => useAppStore((state) => state.currentTab)
+export const useSetCurrentTab = () => useAppStore((state) => state.setCurrentTab)
+
+// Stats selector - only re-renders when stats change
+export const useStats = () => useAppStore(
+  useShallow((state) => ({
+    currentStreak: state.currentStreak,
+    totalFasts: state.totalFasts,
+    totalHours: state.totalHours,
+    points: state.points,
+    level: state.level,
+  }))
+)
+
+// Hydration selector
+export const useHydration = () => useAppStore(
+  useShallow((state) => ({
+    todayHydration: state.todayHydration,
+    hydrationGoal: state.hydrationGoal,
+    addHydration: state.addHydration,
+  }))
+)
+
+// Toast selector
+export const useToast = () => useAppStore(
+  useShallow((state) => ({
+    toast: state.toast,
+    showToast: state.showToast,
+    hideToast: state.hideToast,
+  }))
+)
+
+// Loading state selector
+export const useIsLoading = () => useAppStore((state) => state.isLoading)

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import { api } from '../services/api'
 import { notificationService } from '../services/notifications'
 
@@ -449,3 +450,52 @@ export const useFastingStore = create<FastingState>()((set, get) => ({
     return Math.min((elapsed / target) * 100, 100)
   }
 }))
+
+// Optimized selectors to prevent unnecessary re-renders
+
+// Basic fasting state
+export const useIsFasting = () => useFastingStore((state) => state.isActive)
+export const useFastingProtocol = () => useFastingStore((state) => state.protocol)
+export const useTargetHours = () => useFastingStore((state) => state.targetHours)
+
+// Timer state selector - groups related timer values
+export const useTimerState = () => useFastingStore(
+  useShallow((state) => ({
+    isActive: state.isActive,
+    startTime: state.startTime,
+    targetHours: state.targetHours,
+    pausedAt: state.pausedAt,
+    pausedDuration: state.pausedDuration,
+    protocol: state.protocol,
+  }))
+)
+
+// Timer actions selector
+export const useTimerActions = () => useFastingStore(
+  useShallow((state) => ({
+    startFast: state.startFast,
+    endFast: state.endFast,
+    pauseFast: state.pauseFast,
+    resumeFast: state.resumeFast,
+    setProtocol: state.setProtocol,
+  }))
+)
+
+// Computed values (these are functions, so they don't cause re-renders on their own)
+export const useTimerComputeds = () => useFastingStore(
+  useShallow((state) => ({
+    getElapsedTime: state.getElapsedTime,
+    getProgress: state.getProgress,
+    getCurrentZone: state.getCurrentZone,
+  }))
+)
+
+// Initialization state
+export const useFastingInit = () => useFastingStore(
+  useShallow((state) => ({
+    isInitialized: state.isInitialized,
+    isLoading: state.isLoading,
+    initializeFromServer: state.initializeFromServer,
+    syncWithServer: state.syncWithServer,
+  }))
+)

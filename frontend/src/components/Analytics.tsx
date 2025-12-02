@@ -1,14 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense, memo } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Clock, Flame, Target, TrendingUp,
-  ChevronLeft, ChevronRight, Award, Droplets, Brain, AlertCircle
+  ChevronLeft, ChevronRight, Award, Droplets, Brain, AlertCircle, Loader2
 } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../services/api'
-import { FastingChart, WeightChart, HydrationChart, MoodChart } from './Charts'
-import CognitiveTests from './CognitiveTests'
 import type { DailyStats } from '../types'
+
+// Lazy load chart components - recharts is heavy
+const FastingChart = lazy(() => import('./Charts/FastingChart'))
+const WeightChart = lazy(() => import('./Charts/WeightChart'))
+const HydrationChart = lazy(() => import('./Charts/HydrationChart'))
+const MoodChart = lazy(() => import('./Charts/MoodChart'))
+
+// Lazy load CognitiveTests - only needed when Brain Gym tab is active
+const CognitiveTests = lazy(() => import('./CognitiveTests'))
+
+// Chart loading skeleton
+const ChartSkeleton = memo(() => (
+  <div className="h-64 flex items-center justify-center bg-slate-50 rounded-xl animate-pulse">
+    <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+  </div>
+))
 
 type TimeRange = '7d' | '30d' | '90d' | 'all'
 type AnalyticsTab = 'charts' | 'cognitive'
@@ -204,8 +218,12 @@ export default function Analytics() {
         </button>
       </div>
 
-      {/* Cognitive Tests Tab */}
-      {activeTab === 'cognitive' && <CognitiveTests />}
+      {/* Cognitive Tests Tab - Lazy loaded */}
+      {activeTab === 'cognitive' && (
+        <Suspense fallback={<div className="py-12 text-center"><Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto" /></div>}>
+          <CognitiveTests />
+        </Suspense>
+      )}
 
       {/* Charts Tab */}
       {activeTab === 'charts' && (
@@ -275,28 +293,30 @@ export default function Analytics() {
           ))}
         </div>
 
-        {/* Chart Content */}
+        {/* Chart Content - Lazy loaded charts */}
         <div className="h-64">
-          {activeChart === 'fasting' && (
-            fastingData.length > 0 
-              ? <FastingChart data={fastingData} type="bar" height={240} />
-              : <EmptyState message="No fasting data yet. Start a fast to see your progress!" />
-          )}
-          {activeChart === 'weight' && (
-            weightData.length > 0 
-              ? <WeightChart data={weightData} goalWeight={70} height={240} />
-              : <EmptyState message="No weight data yet. Log your weight to track your progress!" />
-          )}
-          {activeChart === 'hydration' && (
-            hydrationData.some(d => d.amount > 0)
-              ? <HydrationChart data={hydrationData} height={240} />
-              : <EmptyState message="No hydration data yet. Log your water intake!" />
-          )}
-          {activeChart === 'mood' && (
-            moodData.mood > 0 || moodData.energy > 0
-              ? <MoodChart data={moodData} height={240} />
-              : <EmptyState message="No wellness data yet. Log your mood to see trends!" />
-          )}
+          <Suspense fallback={<ChartSkeleton />}>
+            {activeChart === 'fasting' && (
+              fastingData.length > 0 
+                ? <FastingChart data={fastingData} type="bar" height={240} />
+                : <EmptyState message="No fasting data yet. Start a fast to see your progress!" />
+            )}
+            {activeChart === 'weight' && (
+              weightData.length > 0 
+                ? <WeightChart data={weightData} goalWeight={70} height={240} />
+                : <EmptyState message="No weight data yet. Log your weight to track your progress!" />
+            )}
+            {activeChart === 'hydration' && (
+              hydrationData.some(d => d.amount > 0)
+                ? <HydrationChart data={hydrationData} height={240} />
+                : <EmptyState message="No hydration data yet. Log your water intake!" />
+            )}
+            {activeChart === 'mood' && (
+              moodData.mood > 0 || moodData.energy > 0
+                ? <MoodChart data={moodData} height={240} />
+                : <EmptyState message="No wellness data yet. Log your mood to see trends!" />
+            )}
+          </Suspense>
         </div>
 
         {/* Chart Legend/Info */}

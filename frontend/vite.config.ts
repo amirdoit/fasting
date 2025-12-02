@@ -6,7 +6,10 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      // Use automatic JSX runtime for smaller bundle
+      jsxRuntime: 'automatic',
+    }),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
@@ -59,15 +62,76 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Target modern browsers for smaller bundle
+    target: 'es2020',
+    // Enable minification
+    minify: 'esbuild',
+    // Reduce chunk size warnings threshold
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/fasttrack-[hash].js',
         chunkFileNames: 'assets/fasttrack-[hash].js',
-        assetFileNames: 'assets/fasttrack-[hash].[ext]'
-      }
-    }
+        assetFileNames: 'assets/fasttrack-[hash].[ext]',
+        // Manual chunks for optimal code splitting using function approach
+        manualChunks(id) {
+          // Vendor chunks - group by library
+          if (id.includes('node_modules')) {
+            // React core
+            if (id.includes('react-dom') || id.includes('/react/')) {
+              return 'vendor-react'
+            }
+            // State management
+            if (id.includes('zustand') || id.includes('@tanstack/react-query')) {
+              return 'vendor-state'
+            }
+            // Animation (large)
+            if (id.includes('framer-motion')) {
+              return 'vendor-motion'
+            }
+            // Charts (large)
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'vendor-charts'
+            }
+            // Icons (tree-shaken but still sizeable)
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons'
+            }
+            // Date utilities
+            if (id.includes('date-fns')) {
+              return 'vendor-utils'
+            }
+            // QR code scanner (heavy, lazy loaded)
+            if (id.includes('html5-qrcode')) {
+              return 'vendor-scanner'
+            }
+            // Other node_modules go to a generic vendor chunk
+            return 'vendor'
+          }
+        }
+      },
+    },
+    // Enable source maps for production debugging (optional, can disable for smaller build)
+    sourcemap: false,
+    // CSS code splitting
+    cssCodeSplit: true,
   },
   base: './',
+  // Optimize dependency pre-bundling
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'zustand',
+      '@tanstack/react-query',
+      'framer-motion',
+      'lucide-react',
+      'clsx',
+      'date-fns'
+    ],
+    // Exclude heavy libraries that will be lazy loaded
+    exclude: ['html5-qrcode']
+  },
   test: {
     globals: true,
     environment: 'jsdom',

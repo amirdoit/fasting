@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Users, Trophy, Target, Flame, Clock, Crown, Medal,
@@ -8,7 +8,19 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
 import { useChallengesStore, type Challenge, type Circle } from '../stores/challengesStore'
-import LiveRooms from './LiveRooms'
+
+// Lazy load LiveRooms modal - only needed when user clicks "Live Rooms"
+const LiveRooms = lazy(() => import('./LiveRooms'))
+
+// Modal loading fallback
+const ModalFallback = memo(() => (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+      <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+      <span className="text-slate-600">Loading Live Rooms...</span>
+    </div>
+  </div>
+))
 
 type TabType = 'challenges' | 'leaderboard' | 'circles'
 type LeagueTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
@@ -882,10 +894,12 @@ export default function Social() {
         )}
       </AnimatePresence>
 
-      {/* Live Rooms Modal */}
+      {/* Live Rooms Modal - Lazy loaded */}
       <AnimatePresence>
         {showLiveRooms && (
-          <LiveRooms onClose={() => setShowLiveRooms(false)} />
+          <Suspense fallback={<ModalFallback />}>
+            <LiveRooms onClose={() => setShowLiveRooms(false)} />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>
