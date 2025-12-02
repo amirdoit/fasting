@@ -1,5 +1,15 @@
 # User specified ignore
-.folders
+.cursor/
+.kilocode/
+.kingscoders
+.cursorrules
+.cursorrules.md
+.cursorrules.txt
+.cursorrules.yml
+.cursorrules.yaml
+.cursorrules.json
+.cursorrules.jsonc
+.cursorrules.json5
 
 # System and IDE
 .DS_Store

@@ -1,20 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Play, Pause, Square, RotateCcw, Clock, 
   ChevronDown, Sparkles, Wind, AlertTriangle, Target, Timer as TimerIcon,
-  Waves, Pill, Scan
+  Waves, Pill, Scan, Loader2
 } from 'lucide-react'
 import { useFastingStore, FASTING_ZONES, PROTOCOLS, type FastingProtocol } from '../../stores/fastingStore'
 import { useAppStore } from '../../stores/appStore'
 import { useCycleStore } from '../../stores/cycleStore'
 import { api } from '../../services/api'
+
+// Eagerly load core timer components
 import TimerRing from './TimerRing'
-import BreathingExercise from './BreathingExercise'
 import Mascot from '../Mascot'
-import UrgeSurfer from '../UrgeSurfer'
-import SupplementManager from '../SupplementManager'
-import FastingScanner from '../FastingScanner'
+
+// Lazy load modal components - only loaded when opened
+const BreathingExercise = lazy(() => import('./BreathingExercise'))
+const UrgeSurfer = lazy(() => import('../UrgeSurfer'))
+const SupplementManager = lazy(() => import('../SupplementManager'))
+const FastingScanner = lazy(() => import('../FastingScanner'))
+
+// Modal loading fallback
+const ModalFallback = memo(() => (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+      <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+      <span className="text-slate-600">Loading...</span>
+    </div>
+  </div>
+))
 
 export default function Timer() {
   const { 
@@ -522,34 +536,42 @@ export default function Timer() {
         )}
       </AnimatePresence>
 
-      {/* Breathing Exercise Modal */}
+      {/* Breathing Exercise Modal - Lazy loaded */}
       <AnimatePresence>
         {showBreathing && (
-          <BreathingExercise onClose={() => setShowBreathing(false)} />
+          <Suspense fallback={<ModalFallback />}>
+            <BreathingExercise onClose={() => setShowBreathing(false)} />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      {/* Urge Surfer Modal */}
+      {/* Urge Surfer Modal - Lazy loaded */}
       <AnimatePresence>
         {showUrgeSurfer && (
-          <UrgeSurfer 
-            onClose={() => setShowUrgeSurfer(false)} 
-            onConfirmEndFast={handleEnd}
-          />
+          <Suspense fallback={<ModalFallback />}>
+            <UrgeSurfer 
+              onClose={() => setShowUrgeSurfer(false)} 
+              onConfirmEndFast={handleEnd}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      {/* Supplements Modal */}
+      {/* Supplements Modal - Lazy loaded */}
       <AnimatePresence>
         {showSupplements && (
-          <SupplementManager isModal onClose={() => setShowSupplements(false)} />
+          <Suspense fallback={<ModalFallback />}>
+            <SupplementManager isModal onClose={() => setShowSupplements(false)} />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      {/* Food Scanner Modal */}
+      {/* Food Scanner Modal - Lazy loaded */}
       <AnimatePresence>
         {showScanner && (
-          <FastingScanner onClose={() => setShowScanner(false)} />
+          <Suspense fallback={<ModalFallback />}>
+            <FastingScanner onClose={() => setShowScanner(false)} />
+          </Suspense>
         )}
       </AnimatePresence>
     </div>

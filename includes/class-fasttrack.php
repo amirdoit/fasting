@@ -109,6 +109,9 @@ class FastTrack {
         // Push Notifications
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-fasttrack-push-notifications.php';
 
+        // Social Circles
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-fasttrack-circles-manager.php';
+
         $this->loader = new FastTrack_Loader();
     }
 

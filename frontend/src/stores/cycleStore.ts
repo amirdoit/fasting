@@ -1,226 +1,255 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
 
-export type CyclePhase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal'
-
-export interface CyclePhaseInfo {
-  name: string
-  days: string
-  description: string
-  fastingAdvice: string
-  maxFastHours: number
-  color: string
-  icon: string
+export interface CycleData {
+  isEnabled: boolean
+  cycleLength: number
+  periodLength: number
+  lastPeriodStart: string | null
 }
 
-export const CYCLE_PHASES: Record<CyclePhase, CyclePhaseInfo> = {
-  menstrual: {
-    name: 'Menstrual Phase',
-    days: 'Days 1-5',
-    description: 'Your period has started. Energy may be lower.',
-    fastingAdvice: 'Gentle fasting recommended. Listen to your body.',
-    maxFastHours: 14,
-    color: '#EC4899',
-    icon: '🌸'
-  },
-  follicular: {
-    name: 'Follicular Phase',
-    days: 'Days 6-12',
-    description: 'Estrogen is building. Energy and resilience are increasing.',
-    fastingAdvice: 'Great time for longer fasts! Your body can handle more.',
-    maxFastHours: 20,
-    color: '#8B5CF6',
-    icon: '🌱'
-  },
-  ovulation: {
-    name: 'Ovulation Phase',
-    days: 'Days 13-15',
-    description: 'Peak energy and estrogen. Highest resilience.',
-    fastingAdvice: 'Optimal window for challenging fasts or extended fasts.',
-    maxFastHours: 24,
-    color: '#10B981',
-    icon: '🌟'
-  },
-  luteal: {
-    name: 'Luteal Phase',
-    days: 'Days 16-28',
-    description: 'Progesterone rises. Body needs more nourishment.',
-    fastingAdvice: 'Shorter fasts recommended. Focus on nutrient-dense foods.',
-    maxFastHours: 13,
-    color: '#F59E0B',
-    icon: '🍂'
-  }
+export type CyclePhase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal'
+
+export interface PhaseInfo {
+  phase: CyclePhase
+  name: string
+  color: string
+  bgColor: string
+  icon: string
+  description: string
+  fastingTip: string
+  fastingAdvice: string
+  recommendedMaxFast: number
+  daysRemaining: number
 }
 
 interface CycleState {
-  // Settings
+  // State
   isEnabled: boolean
-  cycleLength: number // Default 28 days
-  periodLength: number // Default 5 days
-  lastPeriodStart: string | null // ISO date string
-  
-  // Computed
+  cycleLength: number
+  periodLength: number
+  lastPeriodStart: string | null
   currentPhase: CyclePhase | null
-  currentDay: number | null
-  nextPeriodDate: string | null
-  
-  // Loading state
   isLoading: boolean
-  isInitialized: boolean
+  error: string | null
   
   // Actions
-  setEnabled: (enabled: boolean) => Promise<void>
-  setCycleLength: (days: number) => Promise<void>
-  setPeriodLength: (days: number) => Promise<void>
-  setLastPeriodStart: (date: string) => Promise<void>
-  calculatePhase: () => void
-  getRecommendedMaxFast: () => number
-  getPhaseInfo: () => CyclePhaseInfo | null
   initializeFromServer: () => Promise<void>
-  saveToServer: () => Promise<void>
+  fetchCycleData: () => Promise<void>
+  saveCycleData: (data: Partial<CycleData>) => Promise<boolean>
+  setEnabled: (enabled: boolean) => void
+  clearError: () => void
+  
+  // Computed methods
+  getPhaseInfo: () => PhaseInfo | null
+  getRecommendedMaxFast: () => number
+  getDayInCycle: () => number
 }
 
-export const useCycleStore = create<CycleState>()((set, get) => ({
-  // Initial state - server is source of truth, no localStorage
-      isEnabled: false,
-      cycleLength: 28,
-      periodLength: 5,
-      lastPeriodStart: null,
-      currentPhase: null,
-      currentDay: null,
-      nextPeriodDate: null,
+const PHASE_INFO: Record<CyclePhase, Omit<PhaseInfo, 'phase' | 'daysRemaining'>> = {
+  menstrual: {
+    name: 'Menstrual',
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+    icon: '🩸',
+    description: 'Your period has started. Energy may be lower.',
+    fastingTip: 'Consider lighter fasting (12-14 hours) and prioritize iron-rich foods.',
+    fastingAdvice: 'Shorter fasts recommended. Focus on rest and nutrition.',
+    recommendedMaxFast: 14,
+  },
+  follicular: {
+    name: 'Follicular',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-100',
+    icon: '🌱',
+    description: 'Energy is rising. Your body is preparing for ovulation.',
+    fastingTip: 'Great time for longer fasts (16-20 hours) and high-intensity workouts!',
+    fastingAdvice: 'Ideal time for extended fasting and challenging goals.',
+    recommendedMaxFast: 20,
+  },
+  ovulation: {
+    name: 'Ovulation',
+    color: 'text-pink-600',
+    bgColor: 'bg-pink-100',
+    icon: '✨',
+    description: 'Peak energy and metabolism. Ovulation is occurring.',
+    fastingTip: 'Optimal for challenging fasting goals and peak performance.',
+    fastingAdvice: 'Your body is at peak performance. Go for longer fasts!',
+    recommendedMaxFast: 24,
+  },
+  luteal: {
+    name: 'Luteal',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-100',
+    icon: '🌙',
+    description: 'PMS symptoms may appear. Cravings are normal.',
+    fastingTip: 'Consider shorter fasts (12-16 hours) and prioritize nutrition and rest.',
+    fastingAdvice: 'Moderate fasting. Listen to your body and avoid stress.',
+    recommendedMaxFast: 16,
+  },
+}
+
+export const useCycleStore = create<CycleState>((set, get) => ({
+  // Initial State
+  isEnabled: false,
+  cycleLength: 28,
+  periodLength: 5,
+  lastPeriodStart: null,
+  currentPhase: null,
   isLoading: false,
-  isInitialized: false,
+  error: null,
+  
+  initializeFromServer: async () => {
+    await get().fetchCycleData()
+  },
+  
+  fetchCycleData: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await api.getCycleSettings()
+      if (response.success && response.data) {
+        const dayInCycle = calculateDayInCycle(
+          response.data.lastPeriodStart,
+          response.data.cycleLength
+        )
+        const phase = calculatePhase(
+          dayInCycle,
+          response.data.periodLength,
+          response.data.cycleLength
+        )
+        
+        set({ 
+          isEnabled: response.data.isEnabled,
+          cycleLength: response.data.cycleLength,
+          periodLength: response.data.periodLength,
+          lastPeriodStart: response.data.lastPeriodStart,
+          currentPhase: response.data.isEnabled ? phase : null,
+          isLoading: false 
+        })
+      } else {
+        set({ error: response.error || 'Failed to fetch cycle data', isLoading: false })
+      }
+    } catch (error) {
+      set({ error: 'Failed to fetch cycle data', isLoading: false })
+    }
+  },
+  
+  saveCycleData: async (data) => {
+    set({ isLoading: true, error: null })
+    try {
+      const state = get()
+      const payload = {
+        isEnabled: data.isEnabled ?? state.isEnabled,
+        cycleLength: data.cycleLength ?? state.cycleLength,
+        periodLength: data.periodLength ?? state.periodLength,
+        lastPeriodStart: data.lastPeriodStart ?? state.lastPeriodStart,
+      }
       
-  setEnabled: async (enabled) => {
-        set({ isEnabled: enabled })
-        if (enabled) {
-          get().calculatePhase()
-        } else {
-          set({ currentPhase: null, currentDay: null, nextPeriodDate: null })
-        }
-    // Save to server immediately
-    await get().saveToServer()
-      },
-      
-  setCycleLength: async (days) => {
-        set({ cycleLength: days })
-        get().calculatePhase()
-    await get().saveToServer()
-      },
-      
-  setPeriodLength: async (days) => {
-        set({ periodLength: days })
-        get().calculatePhase()
-    await get().saveToServer()
-      },
-      
-  setLastPeriodStart: async (date) => {
-        set({ lastPeriodStart: date })
-        get().calculatePhase()
-    await get().saveToServer()
-      },
-      
-      calculatePhase: () => {
-        const { isEnabled, lastPeriodStart, cycleLength, periodLength } = get()
-        
-        if (!isEnabled || !lastPeriodStart) {
-          set({ currentPhase: null, currentDay: null, nextPeriodDate: null })
-          return
-        }
-        
-        const startDate = new Date(lastPeriodStart)
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        
-        // Calculate days since last period start
-        const diffTime = today.getTime() - startDate.getTime()
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-        
-        // Calculate current day in cycle (1-indexed)
-        const currentDay = (diffDays % cycleLength) + 1
-        
-        // Calculate next period date
-        const cyclesSinceLast = Math.floor(diffDays / cycleLength)
-        const nextPeriodDate = new Date(startDate)
-        nextPeriodDate.setDate(nextPeriodDate.getDate() + (cyclesSinceLast + 1) * cycleLength)
-        
-        // Determine phase based on day
-        let phase: CyclePhase
-        
-        if (currentDay <= periodLength) {
-          phase = 'menstrual'
-        } else if (currentDay <= 12) {
-          phase = 'follicular'
-        } else if (currentDay <= 15) {
-          phase = 'ovulation'
-        } else {
-          phase = 'luteal'
-        }
+      const response = await api.updateCycleSettings(payload)
+      if (response.success) {
+        const dayInCycle = calculateDayInCycle(payload.lastPeriodStart, payload.cycleLength)
+        const phase = calculatePhase(dayInCycle, payload.periodLength, payload.cycleLength)
         
         set({
-          currentPhase: phase,
-          currentDay,
-          nextPeriodDate: nextPeriodDate.toISOString().split('T')[0]
+          ...payload,
+          currentPhase: payload.isEnabled ? phase : null,
+          isLoading: false
         })
-      },
-      
-      getRecommendedMaxFast: () => {
-        const { isEnabled, currentPhase } = get()
-        
-        if (!isEnabled || !currentPhase) {
-          return 24 // Default max if cycle sync not enabled
-        }
-        
-        return CYCLE_PHASES[currentPhase].maxFastHours
-      },
-      
-      getPhaseInfo: () => {
-        const { currentPhase } = get()
-        if (!currentPhase) return null
-        return CYCLE_PHASES[currentPhase]
-      },
-      
-      initializeFromServer: async () => {
-    // Prevent multiple simultaneous initializations
-    if (get().isLoading || get().isInitialized) return
-    
-    set({ isLoading: true })
-    
-        try {
-          const response = await api.getCycleSettings()
-          if (response.success && response.data) {
-            const data = response.data
-            set({
-              isEnabled: data.isEnabled || false,
-              cycleLength: data.cycleLength || 28,
-              periodLength: data.periodLength || 5,
-          lastPeriodStart: data.lastPeriodStart || null,
-          isInitialized: true
-            })
-            get().calculatePhase()
+        return true
       } else {
-        set({ isInitialized: true })
-          }
-        } catch (error) {
-          console.error('Failed to load cycle settings:', error)
-      set({ isInitialized: true })
-    } finally {
-      set({ isLoading: false })
-        }
-      },
-      
-      saveToServer: async () => {
-        const { isEnabled, cycleLength, periodLength, lastPeriodStart } = get()
-        try {
-          await api.updateCycleSettings({
-            isEnabled,
-            cycleLength,
-            periodLength,
-            lastPeriodStart
-          })
-        } catch (error) {
-          console.error('Failed to save cycle settings:', error)
-        }
+        set({ error: response.error || 'Failed to save cycle data', isLoading: false })
+        return false
       }
+    } catch (error) {
+      set({ error: 'Failed to save cycle data', isLoading: false })
+      return false
+    }
+  },
+  
+  setEnabled: (enabled) => {
+    set({ isEnabled: enabled })
+  },
+  
+  clearError: () => set({ error: null }),
+  
+  getPhaseInfo: () => {
+    const state = get()
+    if (!state.isEnabled || !state.currentPhase || !state.lastPeriodStart) return null
+    
+    const dayInCycle = calculateDayInCycle(state.lastPeriodStart, state.cycleLength)
+    const phaseDaysRemaining = calculatePhaseDaysRemaining(
+      dayInCycle,
+      state.currentPhase,
+      state.periodLength,
+      state.cycleLength
+    )
+    
+    return {
+      phase: state.currentPhase,
+      ...PHASE_INFO[state.currentPhase],
+      daysRemaining: phaseDaysRemaining,
+    }
+  },
+  
+  getRecommendedMaxFast: () => {
+    const state = get()
+    if (!state.isEnabled || !state.currentPhase) return 24 // Default max
+    return PHASE_INFO[state.currentPhase].recommendedMaxFast
+  },
+  
+  getDayInCycle: () => {
+    const state = get()
+    if (!state.lastPeriodStart) return 1
+    return calculateDayInCycle(state.lastPeriodStart, state.cycleLength)
+  },
 }))
+
+// Helper functions
+function calculateDayInCycle(lastPeriodStart: string | null, cycleLength: number): number {
+  if (!lastPeriodStart) return 1
+  const today = new Date()
+  const lastPeriod = new Date(lastPeriodStart)
+  const diffTime = today.getTime() - lastPeriod.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  return (diffDays % cycleLength) + 1
+}
+
+function calculatePhase(
+  dayInCycle: number,
+  periodLength: number,
+  cycleLength: number
+): CyclePhase {
+  const ovulationDay = Math.floor(cycleLength / 2)
+  
+  if (dayInCycle <= periodLength) {
+    return 'menstrual'
+  } else if (dayInCycle <= ovulationDay - 2) {
+    return 'follicular'
+  } else if (dayInCycle <= ovulationDay + 2) {
+    return 'ovulation'
+  } else {
+    return 'luteal'
+  }
+}
+
+function calculatePhaseDaysRemaining(
+  dayInCycle: number,
+  phase: CyclePhase,
+  periodLength: number,
+  cycleLength: number
+): number {
+  const ovulationDay = Math.floor(cycleLength / 2)
+  
+  switch (phase) {
+    case 'menstrual':
+      return periodLength - dayInCycle + 1
+    case 'follicular':
+      return (ovulationDay - 2) - dayInCycle + 1
+    case 'ovulation':
+      return (ovulationDay + 2) - dayInCycle + 1
+    case 'luteal':
+      return cycleLength - dayInCycle + 1
+    default:
+      return 1
+  }
+}

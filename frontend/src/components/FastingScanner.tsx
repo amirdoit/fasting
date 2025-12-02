@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   X, Camera, Scan, AlertTriangle, CheckCircle, XCircle,
-  HelpCircle, RefreshCw, Search, Package, Info
+  HelpCircle, RefreshCw, Search, Package, Info, ImageIcon, Sparkles, Loader2
 } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
 import { 
@@ -10,31 +10,45 @@ import {
   type OpenFoodFactsProduct, 
   type FastingAnalysis 
 } from '../services/openFoodFacts'
+import { api } from '../services/api'
+import type { PhotoScanResult, FastingStatus } from '../types'
 
 interface FastingScannerProps {
   onClose: () => void
 }
 
-type ScannerState = 'idle' | 'scanning' | 'analyzing' | 'result' | 'manual' | 'error'
+type ScannerMode = 'barcode' | 'photo'
+type ScannerState = 'idle' | 'scanning' | 'analyzing' | 'result' | 'manual' | 'error' | 'photo-capture' | 'photo-result'
+
+// States where mode tabs should be visible (allows switching modes)
+const SWITCHABLE_STATES: ScannerState[] = ['idle', 'scanning', 'photo-capture', 'manual', 'error']
 
 export default function FastingScanner({ onClose }: FastingScannerProps) {
   const { showToast } = useAppStore()
   
+  const [mode, setMode] = useState<ScannerMode>('barcode')
   const [state, setState] = useState<ScannerState>('idle')
   const [product, setProduct] = useState<OpenFoodFactsProduct | null>(null)
   const [analysis, setAnalysis] = useState<FastingAnalysis | null>(null)
+  const [photoResult, setPhotoResult] = useState<PhotoScanResult | null>(null)
   const [manualBarcode, setManualBarcode] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [, setCameraPermission] = useState<'granted' | 'denied' | 'unknown'>('unknown')
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
   
   const scannerRef = useRef<HTMLDivElement>(null)
   const html5QrCodeRef = useRef<any>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check camera permission on mount
   useEffect(() => {
     checkCameraPermission()
     return () => {
       stopScanner()
+      stopPhotoCamera()
     }
   }, [])
 
@@ -98,6 +112,103 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
     }
   }
 
+  // Photo camera functions
+  const startPhotoCamera = async () => {
+    try {
+      setState('photo-capture')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+      setCameraPermission('granted')
+    } catch (error: any) {
+      console.error('Camera error:', error)
+      if (error.name === 'NotAllowedError') {
+        setCameraPermission('denied')
+        setErrorMessage('Camera access denied. Please enable camera permissions.')
+      } else {
+        setErrorMessage('Failed to start camera. Try uploading a photo instead.')
+      }
+      setState('error')
+    }
+  }
+
+  const stopPhotoCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+  }
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    
+    ctx.drawImage(video, 0, 0)
+    const imageData = canvas.toDataURL('image/jpeg', 0.8)
+    setCapturedImage(imageData)
+    stopPhotoCamera()
+    
+    // Analyze the captured image
+    analyzePhoto(imageData)
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const imageData = e.target?.result as string
+      setCapturedImage(imageData)
+      analyzePhoto(imageData)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const analyzePhoto = async (imageData: string) => {
+    setState('analyzing')
+    
+    try {
+      // Extract base64 data (remove data:image/...;base64, prefix)
+      const base64Data = imageData.includes('base64,') 
+        ? imageData.split('base64,')[1] 
+        : imageData
+      
+      const response = await api.scanFoodPhoto(base64Data, 'base64')
+      
+      if (!response.success || response.error) {
+        setErrorMessage(response.error || 'Failed to analyze photo. Please try again.')
+        setState('error')
+        return
+      }
+      
+      if (response.data?.error) {
+        setErrorMessage(response.data.fastingStatus?.message || 'Could not identify food in this image.')
+        setState('error')
+        return
+      }
+      
+      setPhotoResult(response.data!)
+      setState('photo-result')
+    } catch (error) {
+      console.error('Photo analysis error:', error)
+      setErrorMessage('Failed to analyze photo. Make sure AI is configured in settings.')
+      setState('error')
+    }
+  }
+
   const handleBarcodeDetected = async (barcode: string) => {
     setState('analyzing')
     setManualBarcode('')
@@ -135,11 +246,34 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
   const handleRetry = () => {
     setProduct(null)
     setAnalysis(null)
+    setPhotoResult(null)
+    setCapturedImage(null)
     setErrorMessage('')
     setState('idle')
   }
 
-  const getStatusIcon = (status: FastingAnalysis['status']) => {
+  // Handle mode switching - properly cleanup current mode before switching
+  const handleModeSwitch = useCallback(async (newMode: ScannerMode) => {
+    if (newMode === mode) return
+    
+    // Stop any active cameras/scanners
+    await stopScanner()
+    stopPhotoCamera()
+    
+    // Reset state
+    setProduct(null)
+    setAnalysis(null)
+    setPhotoResult(null)
+    setCapturedImage(null)
+    setErrorMessage('')
+    setManualBarcode('')
+    
+    // Switch mode and reset to idle
+    setMode(newMode)
+    setState('idle')
+  }, [mode])
+
+  const getStatusIcon = (status: FastingAnalysis['status'] | FastingStatus['status']) => {
     switch (status) {
       case 'clean':
         return <CheckCircle className="w-16 h-16 text-emerald-500" />
@@ -152,7 +286,7 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
     }
   }
 
-  const getStatusBgColor = (status: FastingAnalysis['status']) => {
+  const getStatusBgColor = (status: FastingAnalysis['status'] | FastingStatus['status']) => {
     switch (status) {
       case 'clean':
         return 'from-emerald-50 to-green-50 border-emerald-200'
@@ -188,13 +322,41 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
         </button>
       </div>
 
+      {/* Mode Tabs - visible in switchable states so users can change modes */}
+      {SWITCHABLE_STATES.includes(state) && (
+        <div className="flex justify-center gap-2 px-4 mb-4">
+          <button
+            onClick={() => handleModeSwitch('barcode')}
+            className={`px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 ${
+              mode === 'barcode' 
+                ? 'bg-cyan-500 text-white' 
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            <Scan className="w-4 h-4" />
+            Barcode
+          </button>
+          <button
+            onClick={() => handleModeSwitch('photo')}
+            className={`px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2 ${
+              mode === 'photo' 
+                ? 'bg-purple-500 text-white' 
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            AI Photo
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-4">
         <AnimatePresence mode="wait">
           {/* Idle State */}
-          {state === 'idle' && (
+          {state === 'idle' && mode === 'barcode' && (
             <motion.div
-              key="idle"
+              key="idle-barcode"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -205,7 +367,7 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
               </div>
               
               <div className="text-white">
-                <h2 className="text-2xl font-bold mb-2">Scan a Product</h2>
+                <h2 className="text-2xl font-bold mb-2">Scan a Barcode</h2>
                 <p className="text-white/70">
                   Scan any food or drink barcode to check if it's safe during your fast
                 </p>
@@ -242,6 +404,104 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
                   <span>Breaks Fast</span>
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* Photo Mode Idle */}
+          {state === 'idle' && mode === 'photo' && (
+            <motion.div
+              key="idle-photo"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="text-center space-y-6 max-w-sm"
+            >
+              <div className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                <Sparkles className="w-12 h-12 text-white" />
+              </div>
+              
+              <div className="text-white">
+                <h2 className="text-2xl font-bold mb-2">AI Food Scanner</h2>
+                <p className="text-white/70">
+                  Take a photo of your meal and AI will identify foods and estimate macros
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={startPhotoCamera}
+                  className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-5 h-5" />
+                  Take Photo
+                </button>
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 bg-white/10 rounded-xl text-white/80 hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                  Upload Photo
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
+
+              <div className="bg-white/10 rounded-xl p-4 text-left">
+                <p className="text-white/60 text-sm">
+                  <span className="text-purple-400 font-medium">Powered by GPT-5 Nano</span>
+                  <br />
+                  AI estimates portions and macros from your food photos. Works best with clear, well-lit photos of plated meals.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Photo Capture State */}
+          {state === 'photo-capture' && (
+            <motion.div
+              key="photo-capture"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md"
+            >
+              <div className="relative rounded-2xl overflow-hidden bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full aspect-[4/3] object-cover"
+                />
+                <canvas ref={canvasRef} className="hidden" />
+                
+                {/* Capture button overlay */}
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                  <button
+                    onClick={capturePhoto}
+                    className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+                  >
+                    <div className="w-12 h-12 rounded-full border-4 border-purple-500" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-4 text-center text-white/70">
+                <p>Point camera at your meal and tap to capture</p>
+              </div>
+
+              <button
+                onClick={() => { stopPhotoCamera(); setState('idle') }}
+                className="mt-4 w-full py-3 bg-white/10 rounded-xl text-white/80"
+              >
+                Cancel
+              </button>
             </motion.div>
           )}
 
@@ -338,17 +598,27 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
               exit={{ opacity: 0 }}
               className="text-center text-white"
             >
+              {capturedImage && (
+                <div className="w-32 h-32 mx-auto mb-4 rounded-2xl overflow-hidden">
+                  <img src={capturedImage} alt="Captured" className="w-full h-full object-cover" />
+                </div>
+              )}
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-cyan-500 border-t-transparent"
+                className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-purple-500 border-t-transparent"
               />
-              <p className="text-lg font-medium">Analyzing product...</p>
-              <p className="text-white/60 text-sm mt-2">Checking ingredients database</p>
+              <p className="text-lg font-medium flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+                {mode === 'photo' ? 'AI analyzing your meal...' : 'Analyzing product...'}
+              </p>
+              <p className="text-white/60 text-sm mt-2">
+                {mode === 'photo' ? 'Identifying foods and estimating macros' : 'Checking ingredients database'}
+              </p>
             </motion.div>
           )}
 
-          {/* Result State */}
+          {/* Barcode Result State */}
           {state === 'result' && product && analysis && (
             <motion.div
               key="result"
@@ -459,6 +729,138 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
             </motion.div>
           )}
 
+          {/* Photo Result State */}
+          {state === 'photo-result' && photoResult && (
+            <motion.div
+              key="photo-result"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full max-w-md bg-white rounded-3xl p-6 max-h-[80vh] overflow-y-auto"
+            >
+              {/* Status Badge */}
+              <div className="text-center mb-6">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200 }}
+                >
+                  {getStatusIcon(photoResult.fastingStatus.status)}
+                </motion.div>
+                <h2 className={`text-2xl font-bold mt-4 ${
+                  photoResult.fastingStatus.status === 'clean' ? 'text-emerald-600' :
+                  photoResult.fastingStatus.status === 'dirty' ? 'text-amber-600' :
+                  photoResult.fastingStatus.status === 'breaks_fast' ? 'text-red-600' : 'text-slate-600'
+                }`}>
+                  {photoResult.fastingStatus.label}
+                </h2>
+              </div>
+
+              {/* Captured Image & Totals */}
+              <div className={`p-4 rounded-2xl border bg-gradient-to-br ${getStatusBgColor(photoResult.fastingStatus.status)} mb-4`}>
+                <div className="flex gap-4">
+                  {capturedImage && (
+                    <img 
+                      src={capturedImage} 
+                      alt="Meal"
+                      className="w-20 h-20 rounded-xl object-cover"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-800 mb-2">Meal Totals</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Calories:</span>
+                        <span className="font-medium text-slate-700">{photoResult.totals.calories || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Protein:</span>
+                        <span className="font-medium text-slate-700">{photoResult.totals.protein || 0}g</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Carbs:</span>
+                        <span className="font-medium text-slate-700">{photoResult.totals.carbs || 0}g</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Fat:</span>
+                        <span className="font-medium text-slate-700">{photoResult.totals.fat || 0}g</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fasting Message */}
+              <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                <p className="text-slate-700 text-sm">{photoResult.fastingStatus.message}</p>
+                {photoResult.notes && (
+                  <p className="text-slate-500 text-xs mt-2 flex items-start gap-1">
+                    <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    {photoResult.notes}
+                  </p>
+                )}
+              </div>
+
+              {/* Identified Foods */}
+              {photoResult.foods.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-2">
+                    Identified Foods
+                  </h4>
+                  <div className="space-y-2">
+                    {photoResult.foods.map((food, idx) => (
+                      <div 
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-50 text-sm"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium text-slate-800">{food.name}</span>
+                            <p className="text-xs text-slate-500">{food.portion}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-medium text-slate-700">{food.calories} kcal</span>
+                            <p className="text-xs text-slate-500">
+                              {Math.round(food.confidence * 100)}% confident
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-3 mt-2 text-xs text-slate-500">
+                          <span>P: {food.protein}g</span>
+                          <span>C: {food.carbs}g</span>
+                          <span>F: {food.fat}g</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Badge */}
+              <div className="text-center text-xs text-slate-400 mb-4 flex items-center justify-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Analyzed by {photoResult.model}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRetry}
+                  className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Scan Another
+                </button>
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {/* Error State */}
           {state === 'error' && (
             <motion.div
@@ -486,12 +888,23 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
                   Try Again
                 </button>
                 
-                <button
-                  onClick={() => setState('manual')}
-                  className="w-full py-3 bg-white/10 rounded-xl text-white/80"
-                >
-                  Enter Barcode Manually
-                </button>
+                {mode === 'barcode' && (
+                  <button
+                    onClick={() => setState('manual')}
+                    className="w-full py-3 bg-white/10 rounded-xl text-white/80"
+                  >
+                    Enter Barcode Manually
+                  </button>
+                )}
+                
+                {mode === 'photo' && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 bg-white/10 rounded-xl text-white/80"
+                  >
+                    Upload Photo Instead
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -501,10 +914,12 @@ export default function FastingScanner({ onClose }: FastingScannerProps) {
       {/* Footer */}
       <div className="p-4 text-center">
         <p className="text-white/40 text-xs">
-          Powered by Open Food Facts • Data may vary by region
+          {mode === 'barcode' 
+            ? 'Powered by Open Food Facts • Data may vary by region'
+            : 'Powered by GPT-5 Nano via OpenRouter • AI estimates may vary'
+          }
         </p>
       </div>
     </motion.div>
   )
 }
-

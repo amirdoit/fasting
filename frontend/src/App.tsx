@@ -1,21 +1,43 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, lazy, Suspense, memo } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { LogIn, Sparkles } from 'lucide-react'
+import { LogIn, Sparkles, Loader2 } from 'lucide-react'
 import { useAppStore } from './stores/appStore'
 import { useFastingStore } from './stores/fastingStore'
-import Dashboard from './components/Dashboard'
-import Timer from './components/Timer/index'
-import Tracking from './components/Tracking'
-import Analytics from './components/Analytics'
-import Social from './components/Social'
-import Recipes from './components/Recipes'
-import Settings from './components/Settings'
+import { api } from './services/api'
+
+// Lazy load all tab components for code splitting
+// These will be loaded as separate chunks when the tab is accessed
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const Timer = lazy(() => import('./components/Timer/index'))
+const Tracking = lazy(() => import('./components/Tracking'))
+const Analytics = lazy(() => import('./components/Analytics'))
+const Social = lazy(() => import('./components/Social'))
+const Recipes = lazy(() => import('./components/Recipes'))
+const Settings = lazy(() => import('./components/Settings'))
+
+// Preload functions for predictive loading
+const preloadTimer = () => import('./components/Timer/index')
+const preloadTracking = () => import('./components/Tracking')
+const preloadAnalytics = () => import('./components/Analytics')
+
+// Eagerly loaded as they're always visible
 import BottomNav from './components/BottomNav'
 import DesktopLayout from './components/DesktopLayout'
 import Toast from './components/Toast'
-import Onboarding from './components/Onboarding'
-import FeatureTour from './components/FeatureTour'
-import { api } from './services/api'
+
+// Lazy load onboarding & feature tour (not needed for returning users)
+const Onboarding = lazy(() => import('./components/Onboarding'))
+const FeatureTour = lazy(() => import('./components/FeatureTour'))
+
+// Loading fallback component for lazy-loaded tabs
+const TabLoadingFallback = memo(function TabLoadingFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Loader2 className="w-8 h-8 text-primary-500 animate-spin mb-3" />
+      <p className="text-slate-500 text-sm">Loading...</p>
+    </div>
+  )
+})
 
 // Check if user is logged in via WordPress
 const isUserLoggedIn = () => {
@@ -194,6 +216,27 @@ function App() {
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [])
+  
+  // Predictive preloading: load likely-needed tabs after initial render
+  useEffect(() => {
+    if (!isLoggedIn || isOnboarding || isCheckingOnboarding) return
+    
+    // Use requestIdleCallback or setTimeout to avoid blocking main thread
+    const preloadNextTabs = () => {
+      // Preload Timer (most common second tab after Dashboard)
+      preloadTimer()
+      // Preload Tracking after a delay
+      setTimeout(() => preloadTracking(), 1000)
+      // Preload Analytics after longer delay
+      setTimeout(() => preloadAnalytics(), 2000)
+    }
+    
+    if ('requestIdleCallback' in window) {
+      (window as typeof window & { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(preloadNextTabs)
+    } else {
+      setTimeout(preloadNextTabs, 1000)
+    }
+  }, [isLoggedIn, isOnboarding, isCheckingOnboarding])
 
   // Dynamic tab title with timer - Desktop HUD feature
   const { isActive, getElapsedTime, targetHours } = useFastingStore()
@@ -256,37 +299,53 @@ function App() {
   }
 
   const renderCurrentTab = () => {
-    switch (currentTab) {
-      case 'home':
-        return <Dashboard />
-      case 'timer':
-        return <Timer />
-      case 'tracking':
-        return <Tracking />
-      case 'analytics':
-        return <Analytics />
-      case 'social':
-        return <Social />
-      case 'recipes':
-        return <Recipes />
-      case 'settings':
-        return <Settings />
-      default:
-        return <Dashboard />
+    const getTabComponent = () => {
+      switch (currentTab) {
+        case 'home':
+          return <Dashboard />
+        case 'timer':
+          return <Timer />
+        case 'tracking':
+          return <Tracking />
+        case 'analytics':
+          return <Analytics />
+        case 'social':
+          return <Social />
+        case 'recipes':
+          return <Recipes />
+        case 'settings':
+          return <Settings />
+        default:
+          return <Dashboard />
+      }
     }
+    
+    return (
+      <Suspense fallback={<TabLoadingFallback />}>
+        {getTabComponent()}
+      </Suspense>
+    )
   }
 
   if (isOnboarding) {
-    return <Onboarding onComplete={() => {
-      setOnboarding(false)
-      // Onboarding component saves to API - no localStorage backup needed
-      // Show feature tour after onboarding (ft_tour_* is a UI preference, acceptable in localStorage)
-      const userId = window.fasttrackData?.current_user_id || 0
-      const hasSeenTour = localStorage.getItem(`ft_tour_${userId}`)
-      if (!hasSeenTour) {
-        setShowFeatureTour(true)
-      }
-    }} />
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary-50/30 to-secondary-50/30 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+        </div>
+      }>
+        <Onboarding onComplete={() => {
+          setOnboarding(false)
+          // Onboarding component saves to API - no localStorage backup needed
+          // Show feature tour after onboarding (ft_tour_* is a UI preference, acceptable in localStorage)
+          const userId = window.fasttrackData?.current_user_id || 0
+          const hasSeenTour = localStorage.getItem(`ft_tour_${userId}`)
+          if (!hasSeenTour) {
+            setShowFeatureTour(true)
+          }
+        }} />
+      </Suspense>
+    )
   }
 
   const handleTourComplete = () => {
@@ -308,7 +367,11 @@ function App() {
         </DesktopLayout>
         <Toast />
         <AnimatePresence>
-          {showFeatureTour && <FeatureTour onComplete={handleTourComplete} />}
+          {showFeatureTour && (
+            <Suspense fallback={null}>
+              <FeatureTour onComplete={handleTourComplete} />
+            </Suspense>
+          )}
         </AnimatePresence>
       </>
     )
@@ -334,7 +397,11 @@ function App() {
       
       {/* Feature Tour */}
       <AnimatePresence>
-        {showFeatureTour && <FeatureTour onComplete={handleTourComplete} />}
+        {showFeatureTour && (
+          <Suspense fallback={null}>
+            <FeatureTour onComplete={handleTourComplete} />
+          </Suspense>
+        )}
       </AnimatePresence>
     </div>
   )

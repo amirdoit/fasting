@@ -481,11 +481,11 @@ export default function DailyCheckin({ onClose }: DailyCheckinProps) {
             {recommendation && fastConfig && (
               <>
                 {/* Readiness Score */}
-                <div className="text-center">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 200 }}
+            <div className="text-center">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200 }}
                     className="relative w-28 h-28 mx-auto mb-4"
                   >
                     <svg className="w-full h-full transform -rotate-90">
@@ -517,9 +517,9 @@ export default function DailyCheckin({ onClose }: DailyCheckinProps) {
                       <span className="text-3xl font-bold text-slate-800">{recommendation.readinessScore}</span>
                       <span className="text-xs text-slate-500">Readiness</span>
                     </div>
-                  </motion.div>
+              </motion.div>
                   <h2 className="text-xl font-bold text-slate-800">Your Bio-Adaptive Plan</h2>
-                </div>
+            </div>
 
                 {/* Recommendation Card */}
                 <motion.div 
@@ -535,7 +535,7 @@ export default function DailyCheckin({ onClose }: DailyCheckinProps) {
                     <div>
                       <div className={`font-bold ${fastConfig.textColor}`}>{fastConfig.name}</div>
                       <div className="text-sm text-slate-500">
-                        {recommendation.adjustment === 'increase' ? 'Challenge Mode' :
+                      {recommendation.adjustment === 'increase' ? 'Challenge Mode' :
                          recommendation.adjustment === 'decrease' ? 'Recovery Mode' : 'Balanced Mode'}
                       </div>
                     </div>
@@ -604,7 +604,7 @@ export default function DailyCheckin({ onClose }: DailyCheckinProps) {
                     {isSaving ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      <Sparkles className="w-5 h-5" />
+                    <Sparkles className="w-5 h-5" />
                     )}
                     {isSaving ? 'Activating...' : 'Start Fast'}
                   </button>

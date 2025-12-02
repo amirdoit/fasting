@@ -365,46 +365,143 @@ flowchart TD
 
 ---
 
-### Phase 3: Social Circles (Weeks 7-9)
+### Phase 3: Social Circles & Buddy System (Weeks 7-8) ✅ COMPLETED
 **Priority: High**
 **Estimated Complexity: High**
 **Dependencies: Phase 2.6**
+**Status: ✅ All tasks completed**
 
-1. **Database schema for circles**
-   ```sql
-   CREATE TABLE fasttrack_circles
-   CREATE TABLE fasttrack_circle_members
-   CREATE TABLE fasttrack_circle_messages
-   CREATE TABLE fasttrack_circle_activities
-   ```
+1. **✅ Database schema for circles**
+   - `fasttrack_circles` - Circle metadata (name, description, owner, privacy)
+   - `fasttrack_circle_members` - Membership with roles and buddy assignments
+   - `fasttrack_circle_activities` - Activity feed logging
 
-2. **Circle features**
-   - Create public/private circles
-   - Invite via code or direct invite
-   - Circle chat/activity feed
-   - Group challenges
-   - Circle leaderboard
+2. **✅ Circle features**
+   - Create public/private circles with descriptions
+   - Join via unique invite codes
+   - Circle detail page with Members/Stats/Activity tabs
+   - Member list with fasting status indicators
+   - Owner controls: edit, remove members, regenerate invite code
 
-3. **Privacy controls**
-   - Choose what to share with circle
-   - Mute/leave circles
-   - Admin controls for circle owners
+3. **✅ Buddy System**
+   - Assign buddy within circle
+   - BuddyWidget showing buddy's status and streak
+   - Buddy selection modal from circle members
+   - Real-time buddy fasting status
 
-```mermaid
-erDiagram
-    USERS ||--o{ CIRCLE_MEMBERS : joins
-    CIRCLES ||--o{ CIRCLE_MEMBERS : has
-    CIRCLES ||--o{ CIRCLE_MESSAGES : contains
-    CIRCLES ||--o{ CIRCLE_CHALLENGES : hosts
-    CIRCLE_MEMBERS ||--o{ CIRCLE_ACTIVITIES : creates
-```
+4. **✅ Activity Feed**
+   - Auto-logged activities: fast_completed, streak_milestone, member_joined
+   - Paginated activity feed in circle detail
+   - Relative timestamps ("2 hours ago")
+
+**Files Created:**
+| File | Description |
+|------|-------------|
+| `includes/class-fasttrack-circles-manager.php` | Complete CRUD for circles, members, buddies |
+| `frontend/src/stores/circlesStore.ts` | Zustand store for circles state |
+| `frontend/src/components/Circles/CirclesList.tsx` | Circle list with create/join modals |
+| `frontend/src/components/Circles/CircleDetail.tsx` | Circle detail with tabs |
+| `frontend/src/components/Circles/CirclesView.tsx` | Navigation wrapper |
+| `frontend/src/components/BuddyWidget.tsx` | Buddy status display |
 
 ---
 
-### Phase 4: Advanced Analytics & Reporting (Weeks 9-10)
+### Phase 3.5: Smart Coach 2.0 (Week 9) ✅ COMPLETED
+**Priority: High**
+**Estimated Complexity: Medium**
+**Dependencies: Phase 3**
+**Status: ✅ All tasks completed**
+
+1. **✅ Analytics Aggregation Service**
+   - `FastTrack_Analytics_Service` class
+   - Comprehensive user analytics: fasting, weight, hydration, mood, streaks, cognitive
+   - Structured JSON for AI consumption
+   - Transient caching (15-30 min)
+
+2. **✅ AI Coach Summary Endpoint**
+   - `FastTrack_Coach_Service` class
+   - Rule-based report generation (works without AI)
+   - AI-powered reports via OpenRouter (optional)
+   - `fasttrack_coach_reports` database table
+   - Rate limiting (max 1 generation/hour)
+
+3. **✅ Coach Report UI**
+   - `CoachReport.tsx` component
+   - Displays observations, recommendations, warnings
+   - Regenerate button with loading state
+   - Expandable sections
+
+4. **✅ Contextual Micro-Tips**
+   - Tips based on user context (post_fast, streak_milestone)
+   - Returned in API responses
+
+**Files Created:**
+| File | Description |
+|------|-------------|
+| `includes/class-fasttrack-analytics-service.php` | Analytics aggregation |
+| `includes/class-fasttrack-coach-service.php` | AI/rule-based coaching |
+| `frontend/src/components/CoachReport.tsx` | Coach report UI |
+
+---
+
+### Phase 4: Nutrition & Breaking Fast Intelligence (Week 10) ✅ COMPLETED
 **Priority: Medium**
 **Estimated Complexity: Medium**
 **Dependencies: Phase 1**
+**Status: ✅ All tasks completed**
+
+1. **✅ USDA FoodData Central Integration**
+   - `FastTrack_Nutrition_Service` class
+   - Search foods API endpoint
+   - Get food details with full nutrient breakdown
+   - Meal text analysis with automatic portion estimation
+   - Caching with transients
+
+2. **✅ AI Food Photo Scanner**
+   - `FastTrack_Vision_Service` class
+   - OpenRouter integration with GPT-5 Nano model
+   - Photo capture or upload
+   - AI identifies foods, estimates portions, calculates macros
+   - Fasting safety assessment (clean/dirty/breaks_fast)
+
+3. **✅ Meal Macro Analysis UI**
+   - "Analyze Macros (USDA)" button in Tracking → Meals
+   - Shows calories, protein, carbs, fat, fiber
+   - Auto-fills macros before meal logging
+
+4. **✅ Enhanced Fasting Scanner**
+   - Dual mode: Barcode (Open Food Facts) + AI Photo (GPT-5 Nano)
+   - Tab switching between modes
+   - Photo capture with real-time preview
+   - Full macro breakdown for AI-analyzed meals
+
+5. **✅ Breaking Fast Recipes**
+   - Filter by `is_breaking_fast` flag
+   - Dedicated "Breaking Fast" toggle in Recipes
+   - Explanation card for post-fast nutrition
+
+**Files Created:**
+| File | Description |
+|------|-------------|
+| `includes/class-fasttrack-nutrition-service.php` | USDA FoodData Central API |
+| `includes/class-fasttrack-vision-service.php` | OpenRouter GPT-5 Nano vision |
+| `frontend/src/components/FastingScanner.tsx` | Enhanced with AI photo mode |
+
+**API Endpoints Added:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/nutrition/search` | Search USDA food database |
+| GET | `/nutrition/food/{id}` | Get detailed nutrients |
+| POST | `/nutrition/analyze` | Analyze meal text for macros |
+| POST | `/meals/scan-photo` | AI photo analysis |
+| GET | `/ai/test` | Test OpenRouter connection |
+
+---
+
+### Phase 5: Advanced Analytics & Reporting (Future)
+**Priority: Medium**
+**Estimated Complexity: Medium**
+**Dependencies: Phase 4**
 
 1. **Enhanced statistics**
    - Weekly/monthly trend analysis
@@ -424,45 +521,15 @@ erDiagram
 
 ---
 
-### Phase 5: Meal Logging Improvements (Weeks 11-12)
-**Priority: Medium**
-**Estimated Complexity: Medium**
-**Dependencies: Phase 1**
-
-1. **Nutrition database integration**
-   - USDA FoodData Central API
-   - Macro/micro tracking
-   - Meal templates
-
-2. **AI Food Scanner - MVP**
-   - OpenAI Vision API integration
-   - Food recognition from photos
-   - Portion estimation
-
-3. **Meal planning**
-   - Suggested meals based on fasting window
-   - Breaking fast meal recommendations
-   - Weekly meal prep suggestions
-
----
-
-### Phase 6: Health Integrations (Weeks 13-15)
+### Phase 6: Health Integrations (Future - Deferred)
 **Priority: Low**
 **Estimated Complexity: High**
-**Dependencies: Phases 1-3**
+**Dependencies: Phases 1-4**
+**Status: Deferred per user request**
 
-1. **Apple Health integration**
-   - Read weight from HealthKit
-   - Sync hydration data
-   - Export fasting data
-
-2. **Google Fit integration**
-   - Similar sync capabilities
-   - Activity data correlation
-
-3. **Wearable support**
-   - Fitbit API integration
-   - Garmin Connect
+1. **Apple Health integration** - Deferred
+2. **Google Fit integration** - Future consideration
+3. **Wearable support** - Future consideration
 
 ---
 
@@ -549,12 +616,13 @@ flowchart TB
 | Phase 2: Push Notifications | 2 weeks | Week 3 | Week 4 | ✅ COMPLETED |
 | Phase 2.5: Gamification Enhancement | 1 week | Week 5 | Week 5 | ✅ COMPLETED |
 | Phase 2.6: Smart Tools | 1 week | Week 6 | Week 6 | ✅ COMPLETED |
-| Phase 3: Social Circles | 3 weeks | Week 7 | Week 9 | Planned |
-| Phase 4: Analytics | 2 weeks | Week 10 | Week 11 | Planned |
-| Phase 5: Meal Logging | 2 weeks | Week 12 | Week 13 | Planned |
-| Phase 6: Health Integrations | 3 weeks | Week 14 | Week 16 | Future |
+| Phase 3: Social Circles & Buddy | 2 weeks | Week 7 | Week 8 | ✅ COMPLETED |
+| Phase 3.5: Smart Coach 2.0 | 1 week | Week 9 | Week 9 | ✅ COMPLETED |
+| Phase 4: Nutrition & AI Scanner | 1 week | Week 10 | Week 10 | ✅ COMPLETED |
+| Phase 5: Advanced Analytics | 2 weeks | Week 11 | Week 12 | Future |
+| Phase 6: Health Integrations | - | - | - | Deferred |
 
-**Total Timeline: 16 weeks for full v3.0 release**
+**Total Timeline: 10 weeks completed - v3.0 core features DONE! 🎉**
 
 ---
 
@@ -605,5 +673,5 @@ flowchart TB
 ---
 
 *Document created: December 2024*
-*Last updated: December 2024 (Phase 2.6 completed)*
-*Next review: After Phase 3 completion*
+*Last updated: December 2024 (Phase 4 - Nutrition & AI Scanner completed)*
+*Status: v3.0 Core Features COMPLETE*

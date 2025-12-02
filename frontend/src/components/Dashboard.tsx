@@ -1,23 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense, memo, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Flame, Clock, Trophy, Zap, Droplets, Plus, 
   TrendingUp, Calendar, ChevronRight, Sparkles,
   Brain, Camera, UtensilsCrossed, Users, Moon, Heart, Shield,
-  Pill, Waves, Scan, Globe, Swords
+  Pill, Waves, Scan, Globe, Swords, Loader2
 } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
 import { useFastingStore, FASTING_ZONES } from '../stores/fastingStore'
 import { api } from '../services/api'
+
+// Eagerly load lightweight, always-visible components
 import TimerRing from './Timer/TimerRing'
-import StreakFreeze from './StreakFreeze'
 import StreakFlameTrail from './StreakFlameTrail'
 import Mascot from './Mascot'
-import SupplementManager from './SupplementManager'
-import UrgeSurfer from './UrgeSurfer'
-import FastingScanner from './FastingScanner'
-import LiveRooms from './LiveRooms'
-import RPGCharacter, { RPGStatCard } from './RPGCharacter'
+
+// Lazy load heavy modal components - only loaded when opened
+const StreakFreeze = lazy(() => import('./StreakFreeze'))
+const SupplementManager = lazy(() => import('./SupplementManager'))
+const UrgeSurfer = lazy(() => import('./UrgeSurfer'))
+const FastingScanner = lazy(() => import('./FastingScanner'))
+const LiveRooms = lazy(() => import('./LiveRooms'))
+const RPGCharacter = lazy(() => import('./RPGCharacter').then(m => ({ default: m.default })))
+const RPGStatCard = lazy(() => import('./RPGCharacter').then(m => ({ default: m.RPGStatCard })))
+
+// Modal loading fallback
+const ModalLoadingFallback = memo(() => (
+  <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+      <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+      <span className="text-slate-600">Loading...</span>
+    </div>
+  </div>
+))
 
 // Feature cards for discoverability
 const discoverFeatures = [
@@ -132,7 +147,7 @@ export default function Dashboard() {
   const [showStreakFreeze, setShowStreakFreeze] = useState(false)
   const [activeSmartTool, setActiveSmartTool] = useState<SmartToolId | null>(null)
 
-  // Update timer every second
+  // Update timer every second - optimized to avoid unnecessary re-renders
   useEffect(() => {
     if (!isActive) return
     const interval = setInterval(() => setTick(t => t + 1), 1000)
@@ -156,30 +171,36 @@ export default function Dashboard() {
     fetchData()
   }, [setStats])
 
-  const formatTime = (ms: number) => {
+  // Memoized formatTime function
+  const formatTime = useCallback((ms: number) => {
     const hours = Math.floor(ms / (1000 * 60 * 60))
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
     const seconds = Math.floor((ms % (1000 * 60)) / 1000)
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }
+  }, [])
 
-  const handleQuickWater = async (amount: number) => {
+  // Memoized handlers
+  const handleQuickWater = useCallback(async (amount: number) => {
     addHydration(amount)
     showToast(`+${amount}ml water logged! 💧`, 'success')
     await api.logHydration({ amount, drinkType: 'water' })
-  }
+  }, [addHydration, showToast])
 
-  const handleStartFast = () => {
+  const handleStartFast = useCallback(() => {
     startFast()
     showToast('Fast started! You got this! 💪', 'success')
-  }
+  }, [startFast, showToast])
+  
+  const handleCloseSmartTool = useCallback(() => setActiveSmartTool(null), [])
+  const handleCloseStreakFreeze = useCallback(() => setShowStreakFreeze(false), [])
 
   const currentZone = getCurrentZone()
   const elapsed = getElapsedTime()
   const progress = getProgress()
   const hydrationPercent = Math.min((todayHydration / hydrationGoal) * 100, 100)
 
-  const statCards = [
+  // Memoize stat cards to prevent recreation on every render
+  const statCards = useMemo(() => [
     { 
       icon: Flame, 
       label: 'Streak', 
@@ -212,7 +233,7 @@ export default function Dashboard() {
       gradient: 'bg-gradient-to-br from-amber-400 to-orange-500',
       shadow: 'shadow-amber-200'
     },
-  ]
+  ], [currentStreak, totalHours, totalFasts, level, points])
 
   return (
     <div className="py-6">
@@ -523,14 +544,16 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* RPG Character Card - Show if character exists */}
+      {/* RPG Character Card - Show if character exists (lazy loaded) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.48 }}
         className="mt-6"
       >
-        <RPGStatCard />
+        <Suspense fallback={<div className="h-24 bg-slate-100 rounded-2xl animate-pulse" />}>
+          <RPGStatCard />
+        </Suspense>
       </motion.div>
 
       {/* Streak Flame Trail & Mascot Section */}
@@ -656,51 +679,63 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Streak Freeze Modal */}
+      {/* Streak Freeze Modal - Lazy loaded */}
       <AnimatePresence>
         {showStreakFreeze && (
-          <StreakFreeze isModal onClose={() => setShowStreakFreeze(false)} />
+          <Suspense fallback={<ModalLoadingFallback />}>
+            <StreakFreeze isModal onClose={handleCloseStreakFreeze} />
+          </Suspense>
         )}
       </AnimatePresence>
 
-      {/* Smart Tool Modals */}
+      {/* Smart Tool Modals - All lazy loaded */}
       <AnimatePresence>
         {activeSmartTool === 'supplements' && (
-          <SupplementManager isModal onClose={() => setActiveSmartTool(null)} />
+          <Suspense fallback={<ModalLoadingFallback />}>
+            <SupplementManager isModal onClose={handleCloseSmartTool} />
+          </Suspense>
         )}
         {activeSmartTool === 'scanner' && (
-          <FastingScanner onClose={() => setActiveSmartTool(null)} />
+          <Suspense fallback={<ModalLoadingFallback />}>
+            <FastingScanner onClose={handleCloseSmartTool} />
+          </Suspense>
         )}
         {activeSmartTool === 'urge-surfer' && (
-          <UrgeSurfer onClose={() => setActiveSmartTool(null)} />
+          <Suspense fallback={<ModalLoadingFallback />}>
+            <UrgeSurfer onClose={handleCloseSmartTool} />
+          </Suspense>
         )}
         {activeSmartTool === 'live-rooms' && (
-          <LiveRooms isModal onClose={() => setActiveSmartTool(null)} />
+          <Suspense fallback={<ModalLoadingFallback />}>
+            <LiveRooms isModal onClose={handleCloseSmartTool} />
+          </Suspense>
         )}
         {activeSmartTool === 'rpg' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            onClick={() => setActiveSmartTool(null)}
-          >
+          <Suspense fallback={<ModalLoadingFallback />}>
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
-              onClick={e => e.stopPropagation()}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+              onClick={handleCloseSmartTool}
             >
-              <RPGCharacter size="lg" showStats showMessage />
-              <button
-                onClick={() => setActiveSmartTool(null)}
-                className="mt-6 w-full py-3 bg-slate-100 rounded-xl text-slate-700 font-medium"
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
+                onClick={e => e.stopPropagation()}
               >
-                Close
-              </button>
+                <RPGCharacter size="lg" showStats showMessage />
+                <button
+                  onClick={handleCloseSmartTool}
+                  className="mt-6 w-full py-3 bg-slate-100 rounded-xl text-slate-700 font-medium"
+                >
+                  Close
+                </button>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          </Suspense>
         )}
       </AnimatePresence>
     </div>

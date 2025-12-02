@@ -271,18 +271,29 @@ class ApiService {
   
   // ============ CIRCLES ============
   
-  async getCircles(): Promise<ApiResponse<Circle[]>> {
-    return this.request<Circle[]>('/circles')
+  async getCircles(filter?: 'all' | 'owned' | 'joined'): Promise<ApiResponse<Circle[]>> {
+    const query = filter ? `?filter=${filter}` : ''
+    return this.request<Circle[]>(`/circles${query}`)
   }
   
-  async getMyCircles(): Promise<ApiResponse<Circle[]>> {
-    return this.request<Circle[]>('/circles')
+  async getPublicCircles(search?: string, limit?: number, offset?: number): Promise<ApiResponse<Circle[]>> {
+    const params = new URLSearchParams()
+    if (search) params.append('search', search)
+    if (limit) params.append('limit', String(limit))
+    if (offset) params.append('offset', String(offset))
+    const query = params.toString() ? `?${params.toString()}` : ''
+    return this.request<Circle[]>(`/circles/public${query}`)
+  }
+  
+  async getCircle(circleId: number): Promise<ApiResponse<Circle>> {
+    return this.request<Circle>(`/circles/${circleId}`)
   }
   
   async createCircle(data: {
     name: string
     description?: string
-    isPrivate?: boolean
+    is_private?: boolean
+    avatar_url?: string
   }): Promise<ApiResponse<Circle>> {
     return this.request<Circle>('/circles', {
       method: 'POST',
@@ -290,10 +301,86 @@ class ApiService {
     })
   }
   
-  async joinCircle(inviteCode: string): Promise<ApiResponse<Circle>> {
+  async updateCircle(circleId: number, data: {
+    name?: string
+    description?: string
+    is_private?: boolean
+    avatar_url?: string
+  }): Promise<ApiResponse<Circle>> {
+    return this.request<Circle>(`/circles/${circleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  }
+  
+  async deleteCircle(circleId: number): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>(`/circles/${circleId}`, {
+      method: 'DELETE'
+    })
+  }
+  
+  async joinCircle(circleId: number, inviteCode?: string): Promise<ApiResponse<Circle>> {
+    return this.request<Circle>(`/circles/${circleId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ invite_code: inviteCode })
+    })
+  }
+  
+  async joinCircleByCode(inviteCode: string): Promise<ApiResponse<Circle>> {
     return this.request<Circle>('/circles/join', {
       method: 'POST',
-      body: JSON.stringify({ inviteCode })
+      body: JSON.stringify({ invite_code: inviteCode })
+    })
+  }
+  
+  async leaveCircle(circleId: number): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>(`/circles/${circleId}/leave`, {
+      method: 'POST'
+    })
+  }
+  
+  async getCircleMembers(circleId: number): Promise<ApiResponse<import('../types').CircleMember[]>> {
+    return this.request<import('../types').CircleMember[]>(`/circles/${circleId}/members`)
+  }
+  
+  async removeCircleMember(circleId: number, userId: number): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>(`/circles/${circleId}/members/${userId}`, {
+      method: 'DELETE'
+    })
+  }
+  
+  async getCircleActivity(circleId: number, limit?: number, offset?: number): Promise<ApiResponse<import('../types').CircleActivity[]>> {
+    const params = new URLSearchParams()
+    if (limit) params.append('limit', String(limit))
+    if (offset) params.append('offset', String(offset))
+    const query = params.toString() ? `?${params.toString()}` : ''
+    return this.request<import('../types').CircleActivity[]>(`/circles/${circleId}/activity${query}`)
+  }
+  
+  async getCircleStats(circleId: number): Promise<ApiResponse<import('../types').CircleStats>> {
+    return this.request<import('../types').CircleStats>(`/circles/${circleId}/stats`)
+  }
+  
+  async regenerateCircleInviteCode(circleId: number): Promise<ApiResponse<{ invite_code: string }>> {
+    return this.request<{ invite_code: string }>(`/circles/${circleId}/invite-code`, {
+      method: 'POST'
+    })
+  }
+  
+  async getCircleBuddy(circleId: number): Promise<ApiResponse<import('../types').Buddy | null>> {
+    return this.request<import('../types').Buddy | null>(`/circles/${circleId}/buddy`)
+  }
+  
+  async setCircleBuddy(circleId: number, buddyUserId: number): Promise<ApiResponse<import('../types').Buddy>> {
+    return this.request<import('../types').Buddy>(`/circles/${circleId}/buddy`, {
+      method: 'POST',
+      body: JSON.stringify({ buddy_id: buddyUserId })
+    })
+  }
+  
+  async removeCircleBuddy(circleId: number): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>(`/circles/${circleId}/buddy`, {
+      method: 'DELETE'
     })
   }
   
@@ -306,6 +393,63 @@ class ApiService {
   
   async getWeeklyReport(): Promise<ApiResponse<WeeklyReport>> {
     return this.request<WeeklyReport>('/analytics/weekly')
+  }
+  
+  async getComprehensiveAnalytics(timeframe: '7days' | '30days' | '90days' | 'all' = '30days'): Promise<ApiResponse<import('../types').ComprehensiveAnalytics>> {
+    return this.request<import('../types').ComprehensiveAnalytics>(`/analytics/comprehensive?timeframe=${timeframe}`)
+  }
+  
+  // ============ COACH ============
+  
+  async getCoachSummary(timeframe: '7days' | '30days' | '90days' = '7days'): Promise<ApiResponse<import('../types').CoachSummary>> {
+    return this.request<import('../types').CoachSummary>(`/coach/summary?timeframe=${timeframe}`)
+  }
+  
+  async regenerateCoachSummary(timeframe: '7days' | '30days' | '90days' = '7days'): Promise<ApiResponse<import('../types').CoachSummary>> {
+    return this.request<import('../types').CoachSummary>(`/coach/summary?timeframe=${timeframe}`, {
+      method: 'POST'
+    })
+  }
+  
+  async getCoachTip(context: string = 'general'): Promise<ApiResponse<import('../types').CoachTip>> {
+    return this.request<import('../types').CoachTip>(`/coach/tip?context=${context}`)
+  }
+  
+  async getMealSuggestion(lastFastHours?: number, goal?: string): Promise<ApiResponse<import('../types').MealSuggestion>> {
+    return this.request<import('../types').MealSuggestion>('/coach/meal-suggestion', {
+      method: 'POST',
+      body: JSON.stringify({ last_fast_hours: lastFastHours, goal })
+    })
+  }
+
+  // Nutrition API (USDA FoodData Central)
+  async searchFoods(query: string, limit: number = 25, dataType?: string): Promise<ApiResponse<import('../types').NutritionSearchResult>> {
+    const params = new URLSearchParams({ query, limit: limit.toString() })
+    if (dataType) params.append('data_type', dataType)
+    return this.request<import('../types').NutritionSearchResult>(`/nutrition/search?${params}`)
+  }
+
+  async getFoodDetails(fdcId: number): Promise<ApiResponse<import('../types').FoodDetails>> {
+    return this.request<import('../types').FoodDetails>(`/nutrition/food/${fdcId}`)
+  }
+
+  async analyzeMealText(description: string): Promise<ApiResponse<import('../types').MealAnalysis>> {
+    return this.request<import('../types').MealAnalysis>('/nutrition/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ description })
+    })
+  }
+
+  // Vision/Photo Scanning API
+  async scanFoodPhoto(image: string, imageType: 'base64' | 'url' = 'base64', context?: string): Promise<ApiResponse<import('../types').PhotoScanResult>> {
+    return this.request<import('../types').PhotoScanResult>('/meals/scan-photo', {
+      method: 'POST',
+      body: JSON.stringify({ image, image_type: imageType, context })
+    })
+  }
+
+  async testAIConnection(): Promise<ApiResponse<import('../types').AIConnectionTest>> {
+    return this.request<import('../types').AIConnectionTest>('/ai/test')
   }
   
   async getFastingScore(): Promise<ApiResponse<FastingScore>> {
@@ -482,31 +626,31 @@ class ApiService {
   
   async getRecipes(filterParams?: string): Promise<ApiResponse<{
     recipes: Array<{
-      id: number
-      name: string
-      description: string
-      imageUrl: string
-      prepTime: number
-      cookTime: number
+    id: number
+    name: string
+    description: string
+    imageUrl: string
+    prepTime: number
+    cookTime: number
       totalTime?: number
       timeCategory?: string
-      servings: number
-      calories: number
-      protein: number
-      carbs: number
-      fat: number
+    servings: number
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
       fiber?: number
-      ingredients: string[]
-      instructions: string[]
-      tags: string[]
+    ingredients: string[]
+    instructions: string[]
+    tags: string[]
       category?: string
       mealType?: string
       dietType?: string
       goalType?: string
-      isBreakingFast: boolean
+    isBreakingFast: boolean
       isFeatured?: boolean
       difficulty?: string
-      rating: number
+    rating: number
     }>
     total: number
     limit: number

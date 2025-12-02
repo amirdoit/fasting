@@ -61,6 +61,12 @@ fasting/
 │   │   │   ├── FastingScanner.tsx   # Barcode scanner for food
 │   │   │   ├── RPGCharacter.tsx     # Fasting RPG character system
 │   │   │   ├── LiveRooms.tsx        # Social live fasters dashboard
+│   │   │   ├── CoachReport.tsx      # AI coach insights display
+│   │   │   ├── BuddyWidget.tsx      # Buddy status widget
+│   │   │   ├── Circles/             # Circle components
+│   │   │   │   ├── CirclesList.tsx  # List of user's circles
+│   │   │   │   ├── CircleDetail.tsx # Circle detail with tabs
+│   │   │   │   └── CirclesView.tsx  # Navigation wrapper
 │   │   │   ├── DesktopLayout.tsx    # Desktop chrome (header, sidebar)
 │   │   │   ├── MobileLayout.tsx     # Mobile chrome (bottom nav)
 │   │   │   └── ui/                  # Shared UI components
@@ -75,7 +81,8 @@ fasting/
 │   │   │   ├── appStore.ts          # Navigation, user stats, hydration, toasts
 │   │   │   ├── themeStore.ts        # Theme preferences
 │   │   │   ├── cycleStore.ts        # Cycle sync settings
-│   │   │   ├── challengesStore.ts   # Challenges, leaderboard, circles
+│   │   │   ├── challengesStore.ts   # Challenges, leaderboard
+│   │   │   ├── circlesStore.ts      # Social circles & buddy system
 │   │   │   ├── cognitiveStore.ts    # Cognitive test results
 │   │   │   └── rpgStore.ts          # RPG character state (XP, HP, class)
 │   │   ├── types/
@@ -107,7 +114,12 @@ fasting/
 │   ├── class-fasttrack-notifications.php    # Server-side notifications
 │   ├── class-fasttrack-push-notifications.php # Web Push (VAPID)
 │   ├── class-fasttrack-rpg-manager.php      # RPG character system
-│   └── class-fasttrack-checkins-manager.php # Daily check-ins with readiness
+│   ├── class-fasttrack-checkins-manager.php # Daily check-ins with readiness
+│   ├── class-fasttrack-circles-manager.php  # Social circles & buddy system
+│   ├── class-fasttrack-analytics-service.php # Analytics aggregation for AI
+│   ├── class-fasttrack-coach-service.php    # AI/rule-based coaching
+│   ├── class-fasttrack-nutrition-service.php # USDA FoodData Central API
+│   └── class-fasttrack-vision-service.php   # OpenRouter GPT-5 Nano vision
 │
 ├── public/
 │   └── class-fasttrack-public.php   # Frontend asset enqueue, shortcode
@@ -306,7 +318,7 @@ All endpoints require authentication via `X-WP-Nonce` header (provided in `windo
 | POST | `/streak-freezes/use` | Use a freeze |
 | POST | `/streak-freezes/earn` | Earn a freeze (7-day streak) |
 
-### Social
+### Social & Circles
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/challenges` | List challenges |
@@ -314,6 +326,18 @@ All endpoints require authentication via `X-WP-Nonce` header (provided in `windo
 | POST | `/challenges/join` | Join a challenge |
 | GET | `/leaderboard` | Community rankings |
 | GET | `/circles` | User's circles |
+| POST | `/circles` | Create new circle |
+| GET | `/circles/{id}` | Get circle details + members |
+| PUT | `/circles/{id}` | Update circle (owner only) |
+| DELETE | `/circles/{id}` | Delete circle (owner only) |
+| POST | `/circles/{id}/join` | Join via invite code |
+| POST | `/circles/{id}/leave` | Leave circle |
+| DELETE | `/circles/{id}/members/{user_id}` | Remove member (owner) |
+| POST | `/circles/{id}/invite-code` | Regenerate invite code |
+| GET | `/circles/{id}/activity` | Get activity feed (paginated) |
+| GET | `/circles/{id}/buddy` | Get user's buddy |
+| POST | `/circles/{id}/buddy` | Set buddy |
+| DELETE | `/circles/{id}/buddy` | Remove buddy |
 
 ### Content
 | Method | Endpoint | Description |
@@ -332,6 +356,24 @@ All endpoints require authentication via `X-WP-Nonce` header (provided in `windo
 | POST | `/cycle` | Update cycle data |
 | GET | `/checkins/today` | Get today's check-in |
 | POST | `/checkins` | Save check-in with readiness |
+
+### Smart Coach 2.0
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/analytics/comprehensive` | Full analytics for AI consumption |
+| GET | `/coach/summary` | Get cached coach report |
+| POST | `/coach/summary` | Force regenerate coach report |
+| GET | `/coach/tip` | Get contextual micro-tip |
+| POST | `/coach/meal-suggestion` | Get AI meal suggestions |
+
+### Nutrition & Food Scanning
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/nutrition/search` | Search USDA FoodData Central |
+| GET | `/nutrition/food/{id}` | Get detailed nutrients by FDC ID |
+| POST | `/nutrition/analyze` | Analyze meal text for macros |
+| POST | `/meals/scan-photo` | AI photo analysis (GPT-5 Nano) |
+| GET | `/ai/test` | Test OpenRouter API connection |
 
 ### RPG System
 | Method | Endpoint | Description |
@@ -571,9 +613,9 @@ Social features for accountability:
 - MySQL 5.7+
 
 ### Frontend Development
-```bash
-cd frontend
-npm install
+   ```bash
+   cd frontend
+   npm install
 npm run dev      # Vite dev server (standalone, API calls will fail)
 npm run build    # Build to dist/ for WordPress
 npm run lint     # Check TypeScript errors
@@ -652,12 +694,32 @@ This compiles React into `frontend/dist/`. The PHP plugin auto-enqueues these as
 - [x] Notifications system (server-generated, client display)
 - [x] Feature Tour (onboarding)
 
+### ✅ Recently Completed (v3.0)
+
+#### Social Circles & Buddy System
+- [x] Create/join circles with invite codes
+- [x] Circle detail view with Members/Stats/Activity tabs
+- [x] Buddy system within circles
+- [x] Activity feed with auto-logged events
+
+#### Smart Coach 2.0
+- [x] Comprehensive analytics aggregation service
+- [x] AI/rule-based coach summaries
+- [x] Coach Report UI with observations & recommendations
+- [x] Contextual micro-tips
+
+#### Nutrition & AI Scanning
+- [x] USDA FoodData Central API integration
+- [x] Meal text analysis with macro estimation
+- [x] AI Photo Scanner (GPT-5 Nano via OpenRouter)
+- [x] Enhanced FastingScanner with dual modes (Barcode + AI Photo)
+- [x] Breaking Fast recipes filter
+
 ### 🔮 Future Enhancements
-- [ ] Social circles (private groups)
-- [ ] Apple Health / Google Fit integration
+- [ ] Advanced Analytics (trend analysis, exportable reports)
+- [ ] Apple Health / Google Fit integration (deferred)
 - [ ] Wearable sync
 - [ ] Multi-language support
-- [ ] AI Food Scanner (photo recognition)
 
 ---
 

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * The REST API functionality of the plugin.
  *
@@ -249,11 +249,11 @@ class FastTrack_API {
             'callback'            => array($this, 'get_streaks'),
             'permission_callback' => array($this, 'get_items_permissions_check')
         ));
-
+        
         // RPG Character endpoints
         register_rest_route($namespace, '/rpg/character', array(
             array(
-                'methods' => WP_REST_Server::READABLE,
+            'methods' => WP_REST_Server::READABLE,
                 'callback'            => array($this, 'get_rpg_character'),
                 'permission_callback' => array($this, 'get_items_permissions_check')
             ),
@@ -292,6 +292,123 @@ class FastTrack_API {
         register_rest_route($namespace, '/analytics/daily', array(
             'methods' => WP_REST_Server::READABLE,
             'callback'            => array($this, 'get_daily_stats'),
+            'permission_callback' => array($this, 'get_items_permissions_check')
+        ));
+        
+        register_rest_route($namespace, '/analytics/comprehensive', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_comprehensive_analytics'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'timeframe' => array(
+                    'default' => '30days',
+                    'validate_callback' => function($param) {
+                        return in_array($param, array('7days', '30days', '90days', 'all'));
+                    }
+                )
+            )
+        ));
+        
+        // Coach endpoints
+        register_rest_route($namespace, '/coach/summary', array(
+            array(
+                'methods' => WP_REST_Server::READABLE,
+                'callback'            => array($this, 'get_coach_summary'),
+                'permission_callback' => array($this, 'get_items_permissions_check'),
+                'args' => array(
+                    'timeframe' => array(
+                        'default' => '7days',
+                        'validate_callback' => function($param) {
+                            return in_array($param, array('7days', '30days', '90days'));
+                        }
+                    )
+                )
+            ),
+            array(
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback'            => array($this, 'regenerate_coach_summary'),
+                'permission_callback' => array($this, 'create_item_permissions_check'),
+                'args' => array(
+                    'timeframe' => array(
+                        'default' => '7days',
+                        'validate_callback' => function($param) {
+                            return in_array($param, array('7days', '30days', '90days'));
+                        }
+                    )
+                )
+            )
+        ));
+        
+        register_rest_route($namespace, '/coach/tip', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_coach_tip'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'context' => array(
+                    'default' => 'general',
+                )
+            )
+        ));
+        
+        register_rest_route($namespace, '/coach/meal-suggestion', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'get_meal_suggestion'),
+            'permission_callback' => array($this, 'create_item_permissions_check')
+        ));
+
+        // Nutrition endpoints (USDA FoodData Central)
+        register_rest_route($namespace, '/nutrition/search', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'search_foods'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'query' => array(
+                    'required' => true,
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'limit' => array(
+                    'default' => 25,
+                    'validate_callback' => function($param) {
+                        return is_numeric($param) && $param > 0 && $param <= 50;
+                    }
+                ),
+                'data_type' => array(
+                    'default' => '',
+                    'sanitize_callback' => 'sanitize_text_field',
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/nutrition/food/(?P<id>\d+)', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_food_details'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) {
+                        return is_numeric($param);
+                    }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/nutrition/analyze', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'analyze_meal'),
+            'permission_callback' => array($this, 'create_item_permissions_check')
+        ));
+
+        // Vision/Photo scanning endpoint
+        register_rest_route($namespace, '/meals/scan-photo', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'scan_photo'),
+            'permission_callback' => array($this, 'create_item_permissions_check')
+        ));
+
+        // Test AI connection
+        register_rest_route($namespace, '/ai/test', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'test_ai_connection'),
             'permission_callback' => array($this, 'get_items_permissions_check')
         ));
         
@@ -335,11 +452,176 @@ class FastTrack_API {
             'permission_callback' => array($this, 'create_item_permissions_check')
         ));
         
-        // Circles endpoints
+        // Circles CRUD endpoints
         register_rest_route($namespace, '/circles', array(
+            array(
+                'methods' => WP_REST_Server::READABLE,
+                'callback'            => array($this, 'get_circles'),
+                'permission_callback' => array($this, 'get_items_permissions_check')
+            ),
+            array(
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback'            => array($this, 'create_circle'),
+                'permission_callback' => array($this, 'create_item_permissions_check')
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/public', array(
             'methods' => WP_REST_Server::READABLE,
-            'callback'            => array($this, 'get_circles'),
-            'permission_callback' => array($this, 'get_items_permissions_check')
+            'callback'            => array($this, 'get_public_circles'),
+            'permission_callback' => '__return_true'
+        ));
+
+        register_rest_route($namespace, '/circles/join', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'join_circle_by_code'),
+            'permission_callback' => array($this, 'create_item_permissions_check')
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)', array(
+            array(
+                'methods' => WP_REST_Server::READABLE,
+                'callback'            => array($this, 'get_circle'),
+                'permission_callback' => array($this, 'get_items_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            ),
+            array(
+                'methods' => 'PUT',
+                'callback'            => array($this, 'update_circle'),
+                'permission_callback' => array($this, 'update_item_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            ),
+            array(
+                'methods' => WP_REST_Server::DELETABLE,
+                'callback'            => array($this, 'delete_circle'),
+                'permission_callback' => array($this, 'delete_item_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/join', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'join_circle'),
+            'permission_callback' => array($this, 'create_item_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/leave', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'leave_circle'),
+            'permission_callback' => array($this, 'create_item_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/members', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_circle_members'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/members/(?P<user_id>\d+)', array(
+            'methods' => WP_REST_Server::DELETABLE,
+            'callback'            => array($this, 'remove_circle_member'),
+            'permission_callback' => array($this, 'delete_item_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                ),
+                'user_id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/activity', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_circle_activity'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/stats', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback'            => array($this, 'get_circle_stats'),
+            'permission_callback' => array($this, 'get_items_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/invite-code', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback'            => array($this, 'regenerate_circle_invite_code'),
+            'permission_callback' => array($this, 'create_item_permissions_check'),
+            'args' => array(
+                'id' => array(
+                    'validate_callback' => function($param) { return is_numeric($param); }
+                )
+            )
+        ));
+
+        register_rest_route($namespace, '/circles/(?P<id>\d+)/buddy', array(
+            array(
+                'methods' => WP_REST_Server::READABLE,
+                'callback'            => array($this, 'get_circle_buddy'),
+                'permission_callback' => array($this, 'get_items_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            ),
+            array(
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback'            => array($this, 'set_circle_buddy'),
+                'permission_callback' => array($this, 'create_item_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            ),
+            array(
+                'methods' => WP_REST_Server::DELETABLE,
+                'callback'            => array($this, 'remove_circle_buddy'),
+                'permission_callback' => array($this, 'delete_item_permissions_check'),
+                'args' => array(
+                    'id' => array(
+                        'validate_callback' => function($param) { return is_numeric($param); }
+                    )
+                )
+            )
         ));
         
         // Leaderboard endpoint
@@ -554,7 +836,7 @@ class FastTrack_API {
         
         return rest_ensure_response($leaderboard);
     }
-    
+
     /**
      * Check if a given request has permission to read items.
      * @since    1.0.0
@@ -1484,7 +1766,7 @@ class FastTrack_API {
             'witnessName' => $witness_name
         ));
     }
-
+    
     /**
      * Get daily stats for analytics.
      */
@@ -1563,10 +1845,10 @@ class FastTrack_API {
             if ($moods_table_exists) {
                 $mood = $wpdb->get_var($wpdb->prepare(
                     "SELECT AVG(CASE 
-                        WHEN mood = 'great' THEN 5 
-                        WHEN mood = 'good' THEN 4 
-                        WHEN mood = 'neutral' THEN 3 
-                        WHEN mood = 'bad' THEN 2 
+                        WHEN mood = 'great' THEN 5
+                        WHEN mood = 'good' THEN 4
+                        WHEN mood = 'neutral' THEN 3
+                        WHEN mood = 'bad' THEN 2
                         ELSE 1
                     END) FROM $moods_table WHERE user_id = %d AND DATE(logged_at) = %s",
                     $user_id, $date
@@ -1587,6 +1869,224 @@ class FastTrack_API {
         }
         
         return rest_ensure_response($stats);
+    }
+    
+    /**
+     * Get comprehensive analytics for AI/Coach consumption.
+     */
+    public function get_comprehensive_analytics($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $timeframe = isset($request['timeframe']) ? sanitize_text_field($request['timeframe']) : '30days';
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-analytics-service.php';
+        
+        $analytics = FastTrack_Analytics_Service::get_user_analytics($user_id, $timeframe);
+        
+        return rest_ensure_response($analytics);
+    }
+    
+    /**
+     * Get coach summary.
+     */
+    public function get_coach_summary($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $timeframe = isset($request['timeframe']) ? sanitize_text_field($request['timeframe']) : '7days';
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-coach-service.php';
+        
+        $summary = FastTrack_Coach_Service::get_coach_summary($user_id, $timeframe, false);
+        
+        if (is_wp_error($summary)) {
+            return $summary;
+        }
+        
+        return rest_ensure_response($summary);
+    }
+    
+    /**
+     * Regenerate coach summary (force new generation).
+     */
+    public function regenerate_coach_summary($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $timeframe = isset($request['timeframe']) ? sanitize_text_field($request['timeframe']) : '7days';
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-coach-service.php';
+        
+        $summary = FastTrack_Coach_Service::get_coach_summary($user_id, $timeframe, true);
+        
+        if (is_wp_error($summary)) {
+            return $summary;
+        }
+        
+        return rest_ensure_response($summary);
+    }
+    
+    /**
+     * Get contextual coach tip.
+     */
+    public function get_coach_tip($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $context = isset($request['context']) ? sanitize_text_field($request['context']) : 'general';
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-coach-service.php';
+        
+        $tip = FastTrack_Coach_Service::get_contextual_tip($user_id, $context);
+        
+        return rest_ensure_response(array('tip' => $tip));
+    }
+    
+    /**
+     * Get AI meal suggestion.
+     */
+    public function get_meal_suggestion($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $context = array(
+            'last_fast_hours' => isset($request['last_fast_hours']) ? floatval($request['last_fast_hours']) : 16,
+            'goal' => isset($request['goal']) ? sanitize_text_field($request['goal']) : 'general',
+            'dietary' => isset($request['dietary']) ? sanitize_text_field($request['dietary']) : '',
+        );
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-coach-service.php';
+        
+        $suggestion = FastTrack_Coach_Service::get_meal_suggestion($user_id, $context);
+        
+        return rest_ensure_response($suggestion);
+    }
+
+    /**
+     * Search USDA FoodData Central for foods.
+     */
+    public function search_foods($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $query = sanitize_text_field($request['query']);
+        $limit = isset($request['limit']) ? intval($request['limit']) : 25;
+        $data_type = isset($request['data_type']) ? sanitize_text_field($request['data_type']) : '';
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-nutrition-service.php';
+        
+        $results = FastTrack_Nutrition_Service::search_foods($query, $limit, $data_type);
+        
+        if (is_wp_error($results)) {
+            return $results;
+        }
+        
+        return rest_ensure_response($results);
+    }
+
+    /**
+     * Get detailed food nutrients by FDC ID.
+     */
+    public function get_food_details($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $fdc_id = intval($request['id']);
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-nutrition-service.php';
+        
+        $result = FastTrack_Nutrition_Service::get_food_details($fdc_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Analyze meal text for macros using USDA data.
+     */
+    public function analyze_meal($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $description = isset($request['description']) ? sanitize_textarea_field($request['description']) : '';
+        
+        if (empty($description)) {
+            return new WP_Error('empty_description', 'Please provide a meal description.', array('status' => 400));
+        }
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-nutrition-service.php';
+        
+        $result = FastTrack_Nutrition_Service::analyze_meal($description);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Scan a food photo using AI vision.
+     */
+    public function scan_photo($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        $image = isset($request['image']) ? $request['image'] : '';
+        $image_type = isset($request['image_type']) ? sanitize_text_field($request['image_type']) : 'base64';
+        $context = isset($request['context']) ? sanitize_text_field($request['context']) : '';
+        
+        if (empty($image)) {
+            return new WP_Error('no_image', 'Please provide an image to analyze.', array('status' => 400));
+        }
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-vision-service.php';
+        
+        $result = FastTrack_Vision_Service::analyze_photo($image, $image_type, $context);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Test AI/Vision connection.
+     */
+    public function test_ai_connection($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('fasttrack_not_logged_in', 'You must be logged in.', array('status' => 401));
+        }
+        
+        require_once FASTTRACK_PLUGIN_DIR . 'includes/class-fasttrack-vision-service.php';
+        
+        $result = FastTrack_Vision_Service::test_connection();
+        
+        return rest_ensure_response($result);
     }
     
     /**
@@ -1815,8 +2315,386 @@ class FastTrack_API {
             return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
         }
         
-        // Return empty array for now - circles feature is placeholder
-        return rest_ensure_response(array());
+        $filter = isset($request['filter']) ? sanitize_text_field($request['filter']) : 'all';
+        $manager = new FastTrack_Circles_Manager();
+        $circles = $manager->get_user_circles($user_id, $filter);
+        
+        return rest_ensure_response($circles);
+    }
+
+    /**
+     * Get public circles for discovery.
+     */
+    public function get_public_circles($request) {
+        $limit = isset($request['limit']) ? intval($request['limit']) : 20;
+        $offset = isset($request['offset']) ? intval($request['offset']) : 0;
+        $search = isset($request['search']) ? sanitize_text_field($request['search']) : '';
+        
+        $manager = new FastTrack_Circles_Manager();
+        $circles = $manager->get_public_circles($limit, $offset, $search);
+        
+        return rest_ensure_response($circles);
+    }
+
+    /**
+     * Create a new circle.
+     */
+    public function create_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $data = array(
+            'name' => isset($request['name']) ? sanitize_text_field($request['name']) : '',
+            'description' => isset($request['description']) ? sanitize_textarea_field($request['description']) : '',
+            'is_private' => isset($request['is_private']) ? (bool) $request['is_private'] : false,
+            'avatar_url' => isset($request['avatar_url']) ? esc_url_raw($request['avatar_url']) : null,
+        );
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->create_circle($user_id, $data);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        $circle = $manager->get_circle($result);
+        return rest_ensure_response($circle);
+    }
+
+    /**
+     * Get a single circle with details.
+     */
+    public function get_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        
+        // Check if user is a member
+        if (!$manager->is_member($user_id, $circle_id)) {
+            $circle = $manager->get_circle($circle_id);
+            if (!$circle || $circle['is_private']) {
+                return new WP_Error('not_found', 'Circle not found.', array('status' => 404));
+            }
+            // Return limited info for public circles
+            return rest_ensure_response(array(
+                'id' => $circle['id'],
+                'name' => $circle['name'],
+                'description' => $circle['description'],
+                'member_count' => $circle['member_count'],
+                'is_private' => $circle['is_private'],
+                'is_member' => false
+            ));
+        }
+        
+        $circle = $manager->get_circle($circle_id);
+        if (!$circle) {
+            return new WP_Error('not_found', 'Circle not found.', array('status' => 404));
+        }
+        
+        $circle['members'] = $manager->get_circle_members($circle_id);
+        $circle['stats'] = $manager->get_circle_stats($circle_id);
+        $circle['is_member'] = true;
+        $circle['is_owner'] = $manager->is_owner($user_id, $circle_id);
+        
+        return rest_ensure_response($circle);
+    }
+
+    /**
+     * Update a circle.
+     */
+    public function update_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $data = array();
+        
+        if (isset($request['name'])) {
+            $data['name'] = sanitize_text_field($request['name']);
+        }
+        if (isset($request['description'])) {
+            $data['description'] = sanitize_textarea_field($request['description']);
+        }
+        if (isset($request['is_private'])) {
+            $data['is_private'] = (bool) $request['is_private'];
+        }
+        if (isset($request['avatar_url'])) {
+            $data['avatar_url'] = esc_url_raw($request['avatar_url']);
+        }
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->update_circle($circle_id, $user_id, $data);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        $circle = $manager->get_circle($circle_id);
+        return rest_ensure_response($circle);
+    }
+
+    /**
+     * Delete a circle.
+     */
+    public function delete_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->delete_circle($circle_id, $user_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response(array('success' => true));
+    }
+
+    /**
+     * Join a circle.
+     */
+    public function join_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $invite_code = isset($request['invite_code']) ? sanitize_text_field($request['invite_code']) : null;
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->join_circle($user_id, $circle_id, $invite_code);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        $circle = $manager->get_circle($circle_id);
+        return rest_ensure_response($circle);
+    }
+
+    /**
+     * Join a circle by invite code.
+     */
+    public function join_circle_by_code($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $invite_code = isset($request['invite_code']) ? sanitize_text_field($request['invite_code']) : '';
+        
+        if (empty($invite_code)) {
+            return new WP_Error('missing_code', 'Invite code is required.', array('status' => 400));
+        }
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->join_by_invite_code($user_id, $invite_code);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response($result);
+    }
+
+    /**
+     * Leave a circle.
+     */
+    public function leave_circle($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->leave_circle($user_id, $circle_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response(array('success' => true));
+    }
+
+    /**
+     * Get circle members.
+     */
+    public function get_circle_members($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        
+        if (!$manager->is_member($user_id, $circle_id)) {
+            return new WP_Error('not_member', 'You must be a member to view members.', array('status' => 403));
+        }
+        
+        $members = $manager->get_circle_members($circle_id);
+        return rest_ensure_response($members);
+    }
+
+    /**
+     * Remove a member from circle.
+     */
+    public function remove_circle_member($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $member_user_id = intval($request['user_id']);
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->remove_member($circle_id, $member_user_id, $user_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response(array('success' => true));
+    }
+
+    /**
+     * Get circle activity feed.
+     */
+    public function get_circle_activity($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $limit = isset($request['limit']) ? intval($request['limit']) : 20;
+        $offset = isset($request['offset']) ? intval($request['offset']) : 0;
+        
+        $manager = new FastTrack_Circles_Manager();
+        
+        if (!$manager->is_member($user_id, $circle_id)) {
+            return new WP_Error('not_member', 'You must be a member to view activity.', array('status' => 403));
+        }
+        
+        $activities = $manager->get_activity_feed($circle_id, $limit, $offset);
+        return rest_ensure_response($activities);
+    }
+
+    /**
+     * Get circle stats.
+     */
+    public function get_circle_stats($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        
+        if (!$manager->is_member($user_id, $circle_id)) {
+            return new WP_Error('not_member', 'You must be a member to view stats.', array('status' => 403));
+        }
+        
+        $stats = $manager->get_circle_stats($circle_id);
+        return rest_ensure_response($stats);
+    }
+
+    /**
+     * Regenerate circle invite code.
+     */
+    public function regenerate_circle_invite_code($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->regenerate_invite_code($circle_id, $user_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return rest_ensure_response(array('invite_code' => $result));
+    }
+
+    /**
+     * Get user's buddy in a circle.
+     */
+    public function get_circle_buddy($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        
+        if (!$manager->is_member($user_id, $circle_id)) {
+            return new WP_Error('not_member', 'You must be a member.', array('status' => 403));
+        }
+        
+        $buddy = $manager->get_buddy($user_id, $circle_id);
+        return rest_ensure_response($buddy);
+    }
+
+    /**
+     * Set user's buddy in a circle.
+     */
+    public function set_circle_buddy($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $buddy_user_id = isset($request['buddy_id']) ? intval($request['buddy_id']) : 0;
+        
+        if ($buddy_user_id === 0) {
+            return new WP_Error('missing_buddy', 'Buddy ID is required.', array('status' => 400));
+        }
+        
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->set_buddy($user_id, $circle_id, $buddy_user_id);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        $buddy = $manager->get_buddy($user_id, $circle_id);
+        return rest_ensure_response($buddy);
+    }
+
+    /**
+     * Remove user's buddy in a circle.
+     */
+    public function remove_circle_buddy($request) {
+        $user_id = get_current_user_id();
+        if ($user_id === 0) {
+            return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
+        }
+        
+        $circle_id = intval($request['id']);
+        $manager = new FastTrack_Circles_Manager();
+        $result = $manager->remove_buddy($user_id, $circle_id);
+        
+        return rest_ensure_response(array('success' => $result !== false));
     }
     
     /**
@@ -1832,7 +2710,7 @@ class FastTrack_API {
         $level = FastTrack_Gamification::get_user_level($user_id);
         $streaks = FastTrack_Streaks::get_user_streaks($user_id);
         
-        return rest_ensure_response(array(
+            return rest_ensure_response(array(
             'points' => $points,
             'level' => $level,
             'level_title' => FastTrack_Gamification::get_level_title($level),
@@ -1868,8 +2746,8 @@ class FastTrack_API {
         update_user_meta($user_id, 'fasttrack_onboarding_completed', true);
         
         return rest_ensure_response(array('success' => true));
-    }
-    
+        }
+        
     /**
      * Reset onboarding.
      */
@@ -1920,8 +2798,8 @@ class FastTrack_API {
         }
         
         return rest_ensure_response($settings);
-    }
-    
+        }
+        
     /**
      * Update cycle settings.
      */
@@ -1931,11 +2809,11 @@ class FastTrack_API {
             return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
         }
         
-        global $wpdb;
+            global $wpdb;
         $table = $wpdb->prefix . 'fasttrack_cycle_settings';
         
         $data = array(
-            'user_id' => $user_id,
+                    'user_id' => $user_id,
             'enabled' => isset($request['enabled']) ? (bool)$request['enabled'] : false,
             'cycle_length' => isset($request['cycleLength']) ? intval($request['cycleLength']) : 28,
             'period_length' => isset($request['periodLength']) ? intval($request['periodLength']) : 5,
@@ -1965,8 +2843,8 @@ class FastTrack_API {
         $user_id = get_current_user_id();
         if ($user_id === 0) {
             return new WP_Error('not_logged_in', 'You must be logged in', array('status' => 401));
-        }
-        
+            }
+            
         global $wpdb;
         $table = $wpdb->prefix . 'fasttrack_cognitive';
         
@@ -2037,7 +2915,7 @@ class FastTrack_API {
         ), ARRAY_A);
         
         if (!$data) {
-            return rest_ensure_response(array(
+        return rest_ensure_response(array(
                 'available' => 0,
                 'used' => 0,
                 'last_earned' => null

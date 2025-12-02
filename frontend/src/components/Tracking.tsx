@@ -57,6 +57,16 @@ export default function Tracking() {
   const [mealType, setMealType] = useState('lunch')
   const [recentMeals, setRecentMeals] = useState<Meal[]>([])
   const [isLoadingMeals, setIsLoadingMeals] = useState(false)
+  
+  // Macro analysis state
+  const [isAnalyzingMacros, setIsAnalyzingMacros] = useState(false)
+  const [analyzedMacros, setAnalyzedMacros] = useState<{
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+    fiber: number
+  } | null>(null)
 
   // Fetch weight history
     const fetchWeightHistory = async () => {
@@ -146,13 +156,56 @@ export default function Tracking() {
     setShowModal(false)
   }
 
-  const handleLogMeal = async () => {
-    if (!mealName) return
+  const handleAnalyzeMacros = async () => {
+    if (!mealName.trim()) {
+      showToast('Enter what you ate first', 'error')
+      return
+    }
     
-    const response = await api.logMeal({ name: mealName, mealType })
+    setIsAnalyzingMacros(true)
+    try {
+      const response = await api.analyzeMealText(mealName)
+      if (response.success && response.data) {
+        setAnalyzedMacros({
+          calories: response.data.totals.calories || 0,
+          protein: response.data.totals.protein || 0,
+          carbs: response.data.totals.carbs || 0,
+          fat: response.data.totals.fat || 0,
+          fiber: response.data.totals.fiber || 0,
+        })
+        showToast('Macros analyzed! ✓', 'success')
+      } else {
+        showToast(response.error || 'Failed to analyze', 'error')
+      }
+    } catch (error) {
+      showToast('Analysis failed. Try again.', 'error')
+    }
+    setIsAnalyzingMacros(false)
+  }
+
+  const handleLogMeal = async () => {
+    const trimmedMealName = mealName.trim()
+    if (!trimmedMealName) return
+    
+    const mealData: { name: string; mealType: string; calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number } = { 
+      name: trimmedMealName, 
+      mealType 
+    }
+    
+    // Include macros if analyzed
+    if (analyzedMacros) {
+      mealData.calories = analyzedMacros.calories
+      mealData.protein = analyzedMacros.protein
+      mealData.carbs = analyzedMacros.carbs
+      mealData.fat = analyzedMacros.fat
+      mealData.fiber = analyzedMacros.fiber
+    }
+    
+    const response = await api.logMeal(mealData)
     if (response.success) {
       showToast('Meal logged! 🍽️', 'success')
       setMealName('')
+      setAnalyzedMacros(null)
       setShowModal(false)
       // Refresh recent meals
       const mealsResponse = await api.getMealHistory(7)
@@ -680,12 +733,12 @@ export default function Tracking() {
             {/* AI Food Scanner Card */}
             {/* Scanner Cards */}
             <div className="grid grid-cols-2 gap-3">
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowFoodScanner(true)}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowFoodScanner(true)}
                 className="card-elevated bg-gradient-to-br from-primary-500 to-primary-600 text-white cursor-pointer p-4"
-              >
+            >
                 <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center mb-3">
                   <Camera className="w-6 h-6 text-white" />
                 </div>
@@ -711,7 +764,7 @@ export default function Tracking() {
                 <h3 className="font-bold text-sm">Barcode Scanner</h3>
                 <p className="text-white/70 text-xs">Breaks fast check</p>
               </motion.div>
-            </div>
+              </div>
 
             <div className="card-elevated">
               <div className="flex items-center justify-between mb-4">
@@ -737,18 +790,77 @@ export default function Tracking() {
               <input
                 type="text"
                 value={mealName}
-                onChange={e => setMealName(e.target.value)}
-                placeholder="What did you eat?"
-                className="input mb-4"
+                onChange={e => {
+                  setMealName(e.target.value)
+                  setAnalyzedMacros(null) // Reset macros when text changes
+                }}
+                placeholder="e.g., 2 eggs, 1 slice toast, coffee"
+                className="input mb-3"
               />
+              
+              {/* Analyze Macros Button */}
+              <button
+                onClick={handleAnalyzeMacros}
+                disabled={!mealName.trim() || isAnalyzingMacros}
+                className="w-full py-2 mb-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isAnalyzingMacros ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    Analyze Macros (USDA)
+                  </>
+                )}
+              </button>
+              
+              {/* Analyzed Macros Display */}
+              {analyzedMacros && (
+                <div className="p-3 mb-3 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-purple-700">Estimated Macros</span>
+                    <button 
+                      onClick={() => setAnalyzedMacros(null)}
+                      className="text-purple-500 hover:text-purple-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    <div>
+                      <div className="text-lg font-bold text-slate-800">{Math.round(analyzedMacros.calories)}</div>
+                      <div className="text-xs text-slate-500">kcal</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-blue-600">{Math.round(analyzedMacros.protein)}g</div>
+                      <div className="text-xs text-slate-500">Protein</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-amber-600">{Math.round(analyzedMacros.carbs)}g</div>
+                      <div className="text-xs text-slate-500">Carbs</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-pink-600">{Math.round(analyzedMacros.fat)}g</div>
+                      <div className="text-xs text-slate-500">Fat</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-green-600">{Math.round(analyzedMacros.fiber)}g</div>
+                      <div className="text-xs text-slate-500">Fiber</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleLogMeal}
-                disabled={!mealName}
+                disabled={!mealName.trim()}
                 className="btn-primary w-full disabled:opacity-50"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Log Meal
+                {analyzedMacros ? 'Log Meal with Macros' : 'Log Meal'}
               </button>
             </div>
 
