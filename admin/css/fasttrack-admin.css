@@ -1,0 +1,136 @@
+/**
+ * FastTrack Admin CSS
+ */
+
+/* General Styles */
+.fasttrack-wrap {
+    max-width: 1200px;
+    margin: 20px 0;
+}
+
+.fasttrack-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    color: #fff;
+}
+
+.fasttrack-header h1 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #fff;
+}
+
+.fasttrack-header .dashicons {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: #fff;
+}
+
+/* Dashboard Widgets */
+.fasttrack-dashboard-widgets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.fasttrack-widget {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    border-top: 4px solid #667eea;
+    /* New primary color */
+}
+
+.fasttrack-widget h3 {
+    margin-top: 0;
+    color: #646970;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.fasttrack-widget .fasttrack-stat {
+    font-size: 36px;
+    font-weight: bold;
+    color: #2c3338;
+    margin: 10px 0;
+}
+
+/* Settings Page */
+.fasttrack-settings-form {
+    background: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* User Data Table */
+.fasttrack-user-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.fasttrack-user-table th,
+.fasttrack-user-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.fasttrack-user-table th {
+    background-color: #f6f7f7;
+    font-weight: 600;
+    color: #2c3338;
+}
+
+.fasttrack-user-table tr:last-child td {
+    border-bottom: none;
+}
+
+.fasttrack-user-table tr:hover {
+    background-color: #f0f0f1;
+}
+
+/* Tabs (if used) */
+.fasttrack-tabs {
+    display: flex;
+    border-bottom: 1px solid #c3c4c7;
+    margin-bottom: 20px;
+}
+
+.fasttrack-tab {
+    padding: 10px 20px;
+    text-decoration: none;
+    color: #2c3338;
+    border: 1px solid transparent;
+    border-bottom: none;
+    margin-bottom: -1px;
+}
+
+.fasttrack-tab.active {
+    background: #f0f0f1;
+    border-color: #c3c4c7;
+    border-bottom-color: #f0f0f1;
+    font-weight: 600;
+}
+
+.fasttrack-tab:hover {
+    background: #f6f7f7;
+    color: #2271b1;
+}

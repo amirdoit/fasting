@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<phpunit
+    bootstrap="tests/bootstrap.php"
+    backupGlobals="false"
+    colors="true"
+    convertErrorsToExceptions="true"
+    convertNoticesToExceptions="true"
+    convertWarningsToExceptions="true"
+>
+    <testsuites>
+        <testsuite name="FastTrack Test Suite">
+            <directory prefix="test-" suffix=".php">./tests/</directory>
+        </testsuite>
+        <testsuite name="API Tests">
+            <directory prefix="test-" suffix=".php">./tests/api/</directory>
+        </testsuite>
+        <testsuite name="Manager Tests">
+            <directory prefix="test-" suffix=".php">./tests/managers/</directory>
+        </testsuite>
+    </testsuites>
+    <filter>
+        <whitelist processUncoveredFilesFromWhitelist="true">
+            <directory suffix=".php">./includes/</directory>
+            <directory suffix=".php">./admin/</directory>
+            <directory suffix=".php">./public/</directory>
+            <exclude>
+                <file>./includes/class-fasttrack-i18n.php</file>
+                <file>./includes/class-fasttrack-loader.php</file>
+            </exclude>
+        </whitelist>
+    </filter>
+    <php>
+        <const name="FASTTRACK_TESTING" value="true"/>
+    </php>
+</phpunit>

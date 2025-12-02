@@ -1,0 +1,263 @@
+{
+  "categories": [
+    { "id": "vitamins", "name": "Vitamins", "icon": "💊" },
+    { "id": "minerals", "name": "Minerals", "icon": "🧪" },
+    { "id": "amino_acids", "name": "Amino Acids", "icon": "🏋️" },
+    { "id": "herbs", "name": "Herbs & Botanicals", "icon": "🌿" },
+    { "id": "other", "name": "Other Supplements", "icon": "💪" }
+  ],
+  "supplements": [
+    {
+      "id": "multivitamin",
+      "name": "Multivitamin",
+      "category": "vitamins",
+      "requires_food": true,
+      "timing": "with_meal",
+      "timing_label": "Take with meal",
+      "warning": "May cause nausea on empty stomach",
+      "icon": "💊"
+    },
+    {
+      "id": "vitamin_d",
+      "name": "Vitamin D",
+      "category": "vitamins",
+      "requires_food": true,
+      "timing": "with_fat",
+      "timing_label": "Take with fatty meal",
+      "warning": "Needs dietary fat for absorption",
+      "icon": "☀️"
+    },
+    {
+      "id": "vitamin_c",
+      "name": "Vitamin C",
+      "category": "vitamins",
+      "requires_food": false,
+      "timing": "anytime",
+      "timing_label": "Safe during fast",
+      "warning": "High doses may cause stomach upset",
+      "icon": "🍊"
+    },
+    {
+      "id": "b_complex",
+      "name": "B-Complex",
+      "category": "vitamins",
+      "requires_food": true,
+      "timing": "with_meal",
+      "timing_label": "Take with breakfast",
+      "warning": "Can cause nausea without food",
+      "icon": "⚡"
+    },
+    {
+      "id": "vitamin_e",
+      "name": "Vitamin E",
+      "category": "vitamins",
+      "requires_food": true,
+      "timing": "with_fat",
+      "timing_label": "Take with fatty meal",
+      "warning": "Fat-soluble - needs dietary fat",
+      "icon": "🌰"
+    },
+    {
+      "id": "vitamin_k2",
+      "name": "Vitamin K2",
+      "category": "vitamins",
+      "requires_food": true,
+      "timing": "with_fat",
+      "timing_label": "Take with fatty meal",
+      "warning": "Fat-soluble vitamin",
+      "icon": "💚"
+    },
+    {
+      "id": "magnesium",
+      "name": "Magnesium",
+      "category": "minerals",
+      "requires_food": false,
+      "timing": "anytime",
+      "timing_label": "Safe during fast",
+      "warning": "Glycinate/citrate forms are gentler",
+      "icon": "🧲"
+    },
+    {
+      "id": "zinc",
+      "name": "Zinc",
+      "category": "minerals",
+      "requires_food": true,
+      "timing": "with_meal",
+      "timing_label": "Take with meal",
+      "warning": "CAUSES NAUSEA on empty stomach",
+      "icon": "🔩"
+    },
+    {
+      "id": "iron",
+      "name": "Iron",
+      "category": "minerals",
+      "requires_food": true,
+      "timing": "with_vitamin_c",
+      "timing_label": "Take with Vitamin C",
+      "warning": "Can cause stomach upset. Avoid with calcium.",
+      "icon": "🩸"
+    },
+    {
+      "id": "calcium",
+      "name": "Calcium",
+      "category": "minerals",
+      "requires_food": false,
+      "timing": "anytime",
+      "timing_label": "Safe during fast",
+      "warning": "Don't take with iron supplements",
+      "icon": "🦴"
+    },
+    {
+      "id": "potassium",
+      "name": "Potassium",
+      "category": "minerals",
+      "requires_food": false,
+      "timing": "anytime",
+      "timing_label": "Safe during fast",
+      "warning": "Good for electrolyte balance",
+      "icon": "🍌"
+    },
+    {
+      "id": "electrolytes",
+      "name": "Electrolytes",
+      "category": "minerals",
+      "requires_food": false,
+      "timing": "during_fast",
+      "timing_label": "Recommended during fast",
+      "warning": "Essential for extended fasts (16h+)",
+      "icon": "⚡"
+    },
+    {
+      "id": "sodium",
+      "name": "Sodium/Salt",
+      "category": "minerals",
+      "requires_food": false,
+      "timing": "during_fast",
+      "timing_label": "Recommended during fast",
+      "warning": "Prevents fasting headaches",
+      "icon": "🧂"
+    },
+    {
+      "id": "omega3",
+      "name": "Omega-3 / Fish Oil",
+      "category": "other",
+      "requires_food": true,
+      "timing": "with_fat",
+      "timing_label": "Take with fatty meal",
+      "warning": "Can cause fishy burps on empty stomach",
+      "icon": "🐟"
+    },
+    {
+      "id": "creatine",
+      "name": "Creatine",
+      "category": "amino_acids",
+      "requires_food": false,
+      "timing": "anytime",
+      "timing_label": "Safe during fast",
+      "warning": "Does not break fast. Stay hydrated.",
+      "icon": "💪"
+    },
+    {
+      "id": "bcaa",
+      "name": "BCAAs",
+      "category": "amino_acids",
+      "requires_food": false,
+      "timing": "breaks_fast",
+      "timing_label": "BREAKS FAST",
+      "warning": "Contains calories - take in eating window",
+      "icon": "🏋️"
+    },
+    {
+      "id": "collagen",
+      "name": "Collagen",
+      "category": "amino_acids",
+      "requires_food": false,
+      "timing": "breaks_fast",
+      "timing_label": "BREAKS FAST",
+      "warning": "Contains protein/calories",
+      "icon": "✨"
+    },
+    {
+      "id": "protein_powder",
+      "name": "Protein Powder",
+      "category": "amino_acids",
+      "requires_food": false,
+      "timing": "breaks_fast",
+      "timing_label": "BREAKS FAST",
+      "warning": "Contains significant calories",
+      "icon": "🥛"
+    },
+    {
+      "id": "ashwagandha",
+      "name": "Ashwagandha",
+      "category": "herbs",
+      "requires_food": true,
+      "timing": "with_meal",
+      "timing_label": "Take with meal",
+      "warning": "Better absorbed with food",
+      "icon": "🌿"
+    },
+    {
+      "id": "turmeric",
+      "name": "Turmeric/Curcumin",
+      "category": "herbs",
+      "requires_food": true,
+      "timing": "with_fat",
+      "timing_label": "Take with fatty meal + pepper",
+      "warning": "Needs fat and black pepper for absorption",
+      "icon": "🟡"
+    },
+    {
+      "id": "green_tea_extract",
+      "name": "Green Tea Extract",
+      "category": "herbs",
+      "requires_food": true,
+      "timing": "with_meal",
+      "timing_label": "Take with food",
+      "warning": "Can cause liver issues on empty stomach",
+      "icon": "🍵"
+    },
+    {
+      "id": "probiotics",
+      "name": "Probiotics",
+      "category": "other",
+      "requires_food": false,
+      "timing": "before_meal",
+      "timing_label": "30 min before eating",
+      "warning": "Best on empty stomach before breaking fast",
+      "icon": "🦠"
+    },
+    {
+      "id": "apple_cider_vinegar",
+      "name": "Apple Cider Vinegar",
+      "category": "other",
+      "requires_food": false,
+      "timing": "during_fast",
+      "timing_label": "Safe during fast",
+      "warning": "May help with hunger. Dilute in water.",
+      "icon": "🍎"
+    },
+    {
+      "id": "caffeine",
+      "name": "Caffeine Pills",
+      "category": "other",
+      "requires_food": false,
+      "timing": "during_fast",
+      "timing_label": "Safe during fast",
+      "warning": "Appetite suppressant. Watch for jitters.",
+      "icon": "☕"
+    },
+    {
+      "id": "melatonin",
+      "name": "Melatonin",
+      "category": "other",
+      "requires_food": false,
+      "timing": "bedtime",
+      "timing_label": "Take at bedtime",
+      "warning": "30-60 min before sleep",
+      "icon": "🌙"
+    }
+  ]
+}
+
+

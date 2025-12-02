@@ -1,0 +1,582 @@
+---
+alwaysApply: true
+---
+# FastTrack Plugin Development Rules
+
+You are an expert in WordPress, PHP, and React/TypeScript. This is a fasting tracker plugin with a PHP backend (WordPress REST API) and React frontend.
+
+## Tech Stack
+- **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + Zustand + Framer Motion
+- **Backend**: WordPress PHP 7.4+ with REST API
+- **Build**: `npm run dev` for development, `npm run build` for production (outputs to `frontend/dist/`)
+
+---
+
+## ✅ STATIC DATA AUDIT STATUS - ALL FIXED
+
+All components now properly fetch data from the API. No hardcoded demo data remains.
+
+### ✅ Social.tsx
+- Uses `challengesStore.ts` for challenges, leaderboard, and circles
+- All data fetched from `/challenges`, `/leaderboard`, `/circles` endpoints
+- `joinChallenge()` properly calls API
+
+### ✅ Recipes.tsx & Backend
+- Recipes fetched from `/recipes` endpoint
+- Backend uses `FastTrack_Recipes_Manager` class with database storage
+- Includes category filtering and recipe details
+
+### ✅ Tracking.tsx
+- Weight history fetched via `api.getWeightHistory()`
+- Meal history fetched via `api.getMealHistory()`
+- Displays real data with loading states and empty states
+
+### ✅ All Backend Endpoints
+- `/challenges`, `/challenges/active`, `/challenges/join` - Fully implemented
+- `/leaderboard` - Returns real user data from database
+- `/circles` - Returns user circles with fallback defaults
+- `/recipes` - Uses `FastTrack_Recipes_Manager`
+
+### ✅ All Components Working Correctly
+- Dashboard.tsx - Fetches insights API properly
+- Analytics.tsx - Fetches daily stats with loading/error states
+- Settings.tsx - Fetches and saves all settings properly
+- Timer/index.tsx - Syncs with API, handles pause/resume
+- Social.tsx - Full API integration via challengesStore
+- Tracking.tsx - Fetches weight and meal history
+- Recipes.tsx - Fetches recipes from API
+- CognitiveTests.tsx - Saves and fetches test results
+- StreakFreeze.tsx - Full API integration for freezes
+- FoodScanner.tsx - Calls `/meals/scan` endpoint
+
+---
+
+## CRITICAL: End-to-End Implementation Requirements
+
+**NEVER create UI components with hardcoded demo data or placeholder functionality.**
+
+Every feature MUST be implemented across ALL THREE layers:
+
+### 1. Database Layer (PHP)
+- Create/modify database tables in `class-fasttrack-activator.php`
+- Use proper WordPress `$wpdb` methods with `prepare()` statements
+- Implement manager classes for CRUD operations in `includes/`
+
+### 2. REST API Layer (PHP)
+- Register endpoints in `class-fasttrack-api.php`
+- Implement proper permission callbacks
+- Use appropriate HTTP methods (GET, POST, PUT, DELETE)
+- Return consistent response formats
+
+### 3. Frontend Layer (React/TypeScript)
+- Add API methods to `frontend/src/services/api.ts`
+- Create/update stores in `frontend/src/stores/`
+- Build UI components that consume real data from stores
+
+---
+
+## Implementation Checklist
+
+Before considering ANY feature complete, verify:
+
+### Database ✓
+```php
+// In class-fasttrack-activator.php - create tables
+$table_name = $wpdb->prefix . 'fasttrack_[feature]';
+$charset_collate = $wpdb->get_charset_collate();
+$sql = "CREATE TABLE $table_name (
+    id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+    user_id bigint(20) unsigned NOT NULL,
+    // ... columns
+    created_at datetime DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY user_id (user_id)
+) $charset_collate;";
+dbDelta($sql);
+```
+
+### Manager Class ✓
+```php
+// In includes/class-fasttrack-[feature]-manager.php
+class FastTrack_[Feature]_Manager {
+    public function create($user_id, $data) { /* INSERT */ }
+    public function get($id) { /* SELECT single */ }
+    public function get_by_user($user_id, $limit = 30) { /* SELECT multiple */ }
+    public function update($id, $data) { /* UPDATE */ }
+    public function delete($id) { /* DELETE */ }
+}
+```
+
+### REST API Endpoints ✓
+```php
+// In class-fasttrack-api.php register_routes()
+register_rest_route($namespace, '/[feature]', array(
+    array(
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => array($this, 'get_[feature]'),
+        'permission_callback' => array($this, 'get_items_permissions_check')
+    ),
+    array(
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => array($this, 'create_[feature]'),
+        'permission_callback' => array($this, 'create_item_permissions_check')
+    )
+));
+
+// Implement callback methods
+public function get_[feature]($request) {
+    $user_id = get_current_user_id();
+    $manager = new FastTrack_[Feature]_Manager();
+    $data = $manager->get_by_user($user_id);
+    return rest_ensure_response($data);
+}
+
+public function create_[feature]($request) {
+    $user_id = get_current_user_id();
+    $manager = new FastTrack_[Feature]_Manager();
+    // Validate and sanitize input
+    $result = $manager->create($user_id, $sanitized_data);
+    return rest_ensure_response($result);
+}
+```
+
+### Frontend API Service ✓
+```typescript
+// In frontend/src/services/api.ts
+async get[Feature](): Promise<ApiResponse<[FeatureType][]>> {
+    return this.request<[FeatureType][]>('/[feature]')
+}
+
+async create[Feature](data: CreateFeatureData): Promise<ApiResponse<[FeatureType]>> {
+    return this.request<[FeatureType]>('/[feature]', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    })
+}
+```
+
+### Frontend Store ✓
+```typescript
+// In frontend/src/stores/[feature]Store.ts
+import { create } from 'zustand'
+import { api } from '../services/api'
+
+interface [Feature]State {
+    items: [FeatureType][]
+    isLoading: boolean
+    error: string | null
+    
+    // Actions that call API
+    fetch[Feature]s: () => Promise<void>
+    add[Feature]: (data: CreateData) => Promise<void>
+}
+
+export const use[Feature]Store = create<[Feature]State>((set, get) => ({
+    items: [],
+    isLoading: false,
+    error: null,
+    
+    fetch[Feature]s: async () => {
+        set({ isLoading: true, error: null })
+        const response = await api.get[Feature]()
+        if (response.success) {
+            set({ items: response.data, isLoading: false })
+        } else {
+            set({ error: response.error, isLoading: false })
+        }
+    },
+    
+    add[Feature]: async (data) => {
+        const response = await api.create[Feature](data)
+        if (response.success) {
+            // Refresh list or add to local state
+            get().fetch[Feature]s()
+        }
+    }
+}))
+```
+
+### UI Component ✓
+```tsx
+// Component that uses the store
+import { use[Feature]Store } from '../stores/[feature]Store'
+import { Loading, ErrorState, EmptyState } from './ui'
+
+export function [Feature]Component() {
+    const { items, isLoading, error, fetch[Feature]s, add[Feature] } = use[Feature]Store()
+    
+    useEffect(() => {
+        fetch[Feature]s()
+    }, [fetch[Feature]s])
+    
+    if (isLoading) return <Loading />
+    if (error) return <ErrorState message={error} onRetry={fetch[Feature]s} />
+    if (items.length === 0) return <EmptyState message="No items yet" onAction={() => {/* open create modal */}} />
+    
+    return (
+        // Render real data from items
+        items.map(item => <ItemCard key={item.id} item={item} />)
+    )
+}
+```
+
+### Store File Location
+All stores must be in `frontend/src/stores/` and follow naming pattern: `[feature]Store.ts`
+
+### Existing Stores Reference
+- `fastingStore.ts` - Timer, active fast, protocols
+- `appStore.ts` - Navigation, hydration, user stats, toast
+- `themeStore.ts` - Theme preferences
+- `cycleStore.ts` - Cycle sync settings
+- `challengesStore.ts` - Challenges, leaderboard, circles
+- `cognitiveStore.ts` - Cognitive test results and averages
+
+### UI Components Available
+Import from `frontend/src/components/ui/`:
+- `<Loading />` - Loading spinner
+- `<ErrorState message={string} onRetry={fn} />` - Error with retry
+- `<EmptyState message={string} action={ReactNode} />` - Empty state with action
+
+---
+
+## Data Flow Verification
+
+### READ Operations (GET)
+```
+User Action → UI Component → Store Action → API Service → REST Endpoint → Manager → Database
+                                                   ↓
+UI Update ← Store State Update ← API Response ← REST Response ← Query Result
+```
+
+### WRITE Operations (POST/PUT/DELETE)
+```
+User Input → Form Submit → Store Action → API Service → REST Endpoint → Manager → Database
+                                                   ↓
+UI Feedback ← Store Update ← Success Response ← Database Confirmation
+```
+
+---
+
+## FORBIDDEN Patterns
+
+### ❌ NEVER DO THIS:
+
+```tsx
+// BAD: Hardcoded demo data
+const demoData = [
+    { id: 1, name: 'Demo Item 1' },
+    { id: 2, name: 'Demo Item 2' }
+]
+
+function Component() {
+    return demoData.map(item => <div>{item.name}</div>)
+}
+```
+
+```tsx
+// BAD: Fake API calls
+const handleSubmit = () => {
+    // "Simulating" API call
+    setTimeout(() => {
+        setSuccess(true)
+    }, 1000)
+}
+```
+
+```tsx
+// BAD: Components without data fetching
+function DashboardWidget() {
+    // No useEffect, no API call, just static content
+    return <div>Your stats will appear here</div>
+}
+```
+
+```php
+// BAD: Endpoint that returns static data without database
+public function get_feature($request) {
+    // TODO: implement database
+    return rest_ensure_response([
+        ['id' => 1, 'name' => 'Sample']
+    ]);
+}
+```
+
+### ✅ ALWAYS DO THIS:
+
+```tsx
+// GOOD: Real data from store with proper loading states
+function Component() {
+    const { items, isLoading, error, fetchItems } = useFeatureStore()
+    
+    useEffect(() => {
+        fetchItems()
+    }, [])
+    
+    if (isLoading) return <Loading />
+    if (error) return <ErrorState error={error} onRetry={fetchItems} />
+    if (!items.length) return <EmptyState onAction={handleCreate} />
+    
+    return items.map(item => <ItemCard key={item.id} item={item} />)
+}
+```
+
+```php
+// GOOD: Complete database implementation
+public function get_feature($request) {
+    $user_id = get_current_user_id();
+    global $wpdb;
+    $table = $wpdb->prefix . 'fasttrack_feature';
+    
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+        $user_id, 30
+    ), ARRAY_A);
+    
+    return rest_ensure_response($results);
+}
+```
+
+---
+
+## Testing Data Flow
+
+After implementing any feature, verify the complete flow:
+
+### 1. Database Test
+```sql
+-- Verify table exists
+SHOW TABLES LIKE 'wp_fasttrack_[feature]';
+
+-- Check table structure
+DESCRIBE wp_fasttrack_[feature];
+```
+
+### 2. API Test (Browser Console or REST client)
+```javascript
+// GET request
+fetch('/wp-json/fasttrack/v1/[feature]', {
+    headers: { 'X-WP-Nonce': fasttrackData.nonce }
+}).then(r => r.json()).then(console.log)
+
+// POST request
+fetch('/wp-json/fasttrack/v1/[feature]', {
+    method: 'POST',
+    headers: { 
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': fasttrackData.nonce 
+    },
+    body: JSON.stringify({ /* data */ })
+}).then(r => r.json()).then(console.log)
+```
+
+### 3. Frontend Test
+```javascript
+// In browser console - check store state
+// Verify data matches what's in database
+```
+
+---
+
+## Existing Architecture Reference
+
+### Database Tables (prefix: wp_fasttrack_)
+- `fasts` - Fasting sessions
+- `hydration` - Daily water intake
+- `weight` - Weight log entries
+- `moods` - Mood tracking
+- `meals` - Meal logging
+- `cognitive` - Cognitive test results
+
+### Manager Classes (includes/)
+- `FastTrack_Fasting_Manager` - Fasting CRUD
+- `FastTrack_Weight_Manager` - Weight CRUD
+- `FastTrack_Hydration_Manager` - Hydration CRUD
+- `FastTrack_Mood_Manager` - Mood CRUD
+- `FastTrack_Meal_Manager` - Meal CRUD
+- `FastTrack_Gamification` - Points and levels
+- `FastTrack_Achievements` - Achievement system
+- `FastTrack_Streaks` - Streak tracking
+
+### API Endpoints (fasttrack/v1/)
+- `/fasts` - GET (list), POST (create)
+- `/fasts/{id}` - GET, PUT, DELETE
+- `/fasts/active` - GET active fast
+- `/fasts/{id}/end` - POST end fast
+- `/hydration` - GET, POST
+- `/hydration/today` - GET today's total
+- `/weight` - GET history, POST new
+- `/mood` - POST log mood
+- `/meals` - GET, POST
+- `/settings` - GET, POST
+- `/achievements` - GET
+- `/points` - GET
+- `/streaks` - GET
+- `/analytics/daily` - GET daily stats
+- `/profile` - GET user profile
+- `/onboarding` - POST
+- `/onboarding/status` - GET
+- `/cycle` - GET, POST cycle sync
+- `/cognitive` - GET, POST
+- `/streak-freezes` - GET, POST use, POST earn
+- `/recipes` - GET
+
+### Frontend Stores (frontend/src/stores/)
+- `fastingStore.ts` - Fasting timer state
+- `appStore.ts` - App-wide state
+- `themeStore.ts` - Theme preferences
+- `cycleStore.ts` - Cycle sync state
+
+### Frontend API (frontend/src/services/api.ts)
+- `ApiService` class with all endpoint methods
+- Uses `window.fasttrackData` for WordPress integration
+- Includes nonce handling for authentication
+
+---
+
+## New Feature Implementation Steps
+
+1. **Design the data structure**
+   - What fields are needed?
+   - What are the relationships?
+
+2. **Create database table** (class-fasttrack-activator.php)
+   - Define schema with proper indexes
+   - Run activation to create table
+
+3. **Create manager class** (includes/class-fasttrack-[feature]-manager.php)
+   - CRUD methods
+   - Data validation
+   - User scoping
+
+4. **Add REST endpoints** (class-fasttrack-api.php)
+   - Register routes
+   - Implement callbacks
+   - Handle errors properly
+
+5. **Add TypeScript types** (frontend/src/types/index.ts)
+   - Define interfaces for the data
+
+6. **Add API methods** (frontend/src/services/api.ts)
+   - Methods for each endpoint
+   - Proper typing
+
+7. **Create/update store** (frontend/src/stores/)
+   - State management
+   - API integration
+   - Loading/error states
+
+8. **Build UI components** (frontend/src/components/)
+   - Use store hooks
+   - Handle all states (loading, error, empty, data)
+   - Forms for creation/editing
+
+9. **Test the complete flow**
+   - Create data through UI
+   - Verify in database
+   - Fetch and display
+   - Update and delete
+
+---
+
+## Error Handling Standards
+
+### PHP/API
+```php
+// Always return proper error responses
+if (!$data) {
+    return new WP_Error(
+        'fasttrack_not_found',
+        'Resource not found',
+        array('status' => 404)
+    );
+}
+
+if (!$result) {
+    return new WP_Error(
+        'fasttrack_create_failed',
+        'Failed to create resource',
+        array('status' => 500)
+    );
+}
+```
+
+### Frontend
+```typescript
+// Always handle API response states
+const response = await api.createFeature(data)
+if (response.success) {
+    set({ items: [...get().items, response.data] })
+    return { success: true }
+} else {
+    set({ error: response.error })
+    return { success: false, error: response.error }
+}
+```
+
+### UI Components
+```tsx
+// Always show appropriate states
+if (isLoading) return <Loading />
+if (error) return <ErrorState message={error} onRetry={refetch} />
+if (!data.length) return <EmptyState message="No data yet" action={<CreateButton />} />
+return <DataList data={data} />
+```
+
+---
+
+## Security Requirements
+
+### PHP
+- Always use `get_current_user_id()` for user scoping
+- Use `$wpdb->prepare()` for ALL queries
+- Sanitize all input: `sanitize_text_field()`, `intval()`, `floatval()`
+- Validate permissions in callbacks
+- Use nonce verification for forms
+
+### Frontend
+- Include `X-WP-Nonce` header in all API requests
+- Don't store sensitive data in localStorage
+- Validate user input before sending
+
+---
+
+## Frontend Development Workflow
+
+### Setup & Running
+```bash
+cd frontend
+npm install          # Install dependencies
+npm run dev          # Development server with HMR
+npm run build        # Production build to dist/
+npm run lint         # Check for lint errors
+```
+
+### File Structure
+```
+frontend/
+├── src/
+│   ├── components/     # React components
+│   ├── stores/         # Zustand state stores
+│   ├── services/       # API service (api.ts)
+│   ├── types/          # TypeScript interfaces
+│   └── main.tsx        # Entry point
+├── dist/               # Built files (loaded by WordPress)
+└── package.json
+```
+
+### After Any Frontend Changes
+1. Run `npm run build` to update dist/
+2. Test in WordPress at the shortcode page
+3. Check browser console for API errors
+
+---
+
+## Remember
+
+1. **No feature is complete until data flows end-to-end**
+2. **Every UI element must be backed by real API data**
+3. **Test create, read, update, and delete operations**
+4. **Handle all UI states: loading, error, empty, and data**
+5. **User data must be properly scoped by user_id**
+6. **Check the STATIC DATA AUDIT section above for features needing fixes**
+7. **Always run `npm run build` after frontend changes**
